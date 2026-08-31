@@ -1,0 +1,10 @@
+{
+  "name": "summit-pyramid",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Summit Pyramid - card pairing puzzle game (browser)",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}

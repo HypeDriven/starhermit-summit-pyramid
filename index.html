@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Summit Pyramid</title>
+<style>
+:root{
+  --bg:#0b1026; --panel:#141b33; --panel2:#1b2340; --text:#e8ecf8; --muted:#9aa4c4;
+  --accent:#ffb35c; --good:#6fe3a5; --bad:#ff7a7a; --focus:#7df0ff;
+  --fs:16px;
+}
+html.lg-text{--fs:19px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/1.45 system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+html.hc{--bg:#000;--panel:#0a0a0a;--panel2:#111;--text:#fff;--muted:#ddd;--accent:#ffd23f;--focus:#fff}
+html.hc .card-btn{border-width:3px}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid #3a4568;border-radius:8px;
+  padding:.5em .9em;cursor:pointer;min-height:44px}
+button:hover{border-color:var(--accent)}
+button:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button.primary{background:var(--accent);color:#1a1208;font-weight:600;border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+h1,h2,h3{margin:.2em 0}
+header#topbar{display:flex;flex-wrap:wrap;gap:.4em 1em;align-items:center;padding:.4em .8em;
+  background:var(--panel);border-bottom:1px solid #2a3355;z-index:5}
+header#topbar .spacer{flex:1}
+#objective{font-weight:600}
+#score-wrap{font-variant-numeric:tabular-nums}
+#live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+main{position:relative;flex:1;display:flex;min-height:0}
+#gl-wrap{position:relative;flex:1;min-width:0}
+#gl{width:100%;height:100%;display:block;touch-action:none}
+#board-dom{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;padding:8px;overflow:auto;background:var(--bg)}
+#board-dom.visible{display:flex}
+.prow{display:flex;gap:3px;justify-content:center}
+.card-btn{width:44px;height:60px;padding:0;font-size:12px;border:1px solid #4a5578;border-radius:6px;
+  background:#f4f0e4;color:#222;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.card-btn.covered{opacity:.35}
+.card-btn.sel{border-color:var(--focus);box-shadow:0 0 0 2px var(--focus)}
+.card-btn.red{color:#a02020}
+.card-btn.legal{border-color:var(--good)}
+#tray{display:flex;gap:.5em;align-items:center;justify-content:center;padding:.5em;
+  background:var(--panel);border-top:1px solid #2a3355;flex-wrap:wrap}
+#tray .pile{min-width:64px;text-align:center;font-size:.85em;color:var(--muted)}
+#tray .pile b{display:block;font-size:1.2em;color:var(--text)}
+.screen{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,8,20,.82);padding:1em;overflow:auto}
+.screen[hidden]{display:none}
+.panel{background:var(--panel);border:1px solid #2a3355;border-radius:12px;padding:1.2em 1.4em;
+  max-width:640px;width:100%;max-height:92%;overflow:auto}
+.panel.wide{max-width:860px}
+.menu{display:flex;flex-direction:column;gap:.5em;margin:.6em 0}
+.row{display:flex;gap:.6em;align-items:center;flex-wrap:wrap;margin:.35em 0}
+.row label{min-width:11em}
+.row input[type=range]{flex:1;min-width:120px}
+table{border-collapse:collapse;width:100%;font-size:.95em}
+td,th{padding:.25em .5em;text-align:left;border-bottom:1px solid #2a3355}
+.muted{color:var(--muted)}
+.good{color:var(--good)} .bad{color:var(--bad)}
+.stage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:.4em;margin:.6em 0}
+.stage-grid button{min-height:52px;font-size:.85em}
+.stage-grid button.locked{opacity:.35}
+.stage-grid button.done{border-color:var(--good)}
+#toast{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);background:var(--panel2);
+  border:1px solid var(--accent);border-radius:8px;padding:.5em 1em;z-index:20;display:none}
+#captions{position:absolute;left:50%;top:56px;transform:translateX(-50%);color:var(--muted);
+  font-style:italic;z-index:9;pointer-events:none;display:none}
+@media (max-width:720px){
+  header#topbar{font-size:.9em}
+  .card-btn{width:38px;height:52px}
+  .panel{padding:.8em}
+}
+</style>
+</head>
+<body>
+<div id="live" aria-live="polite"></div>
+<div id="live-err" aria-live="assertive"></div>
+<header id="topbar" hidden>
+  <span id="objective">Clear the pyramid — pair exposed cards to 21.</span>
+  <span class="spacer"></span>
+  <span id="score-wrap">Score <b id="score">0</b> <button id="btn-breakdown" title="Score breakdown" aria-label="Show score breakdown">ⓘ</button></span>
+  <span id="moves-wrap" title="Moves / limit">Moves <b id="moves">0</b><span id="move-limit"></span></span>
+  <span id="seed-wrap" class="muted" title="Deal seed">seed <b id="seed"></b></span>
+  <span id="mode-label" class="muted"></span>
+</header>
+<main>
+  <div id="gl-wrap">
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <div id="board-dom" role="group" aria-label="Card board"></div>
+    <div id="captions" aria-hidden="true"></div>
+    <div id="toast" role="status"></div>
+  </div>
+</main>
+<nav id="tray" hidden aria-label="Actions">
+  <button id="btn-draw" title="Draw stock card (D)">Draw <span id="stock-count" class="muted"></span></button>
+  <span class="pile">Waste<b id="waste-top">—</b><span id="waste-count" class="muted"></span></span>
+  <button id="btn-recycle" title="Recycle waste (R)">Recycle <span id="recycles-left" class="muted"></span></button>
+  <button id="btn-undo" title="Undo (U)">Undo</button>
+  <button id="btn-hint" title="Hint (H)">Hint</button>
+  <button id="btn-pause" title="Pause (Esc)">Pause</button>
+</nav>
+
+<!-- Screens -->
+<div class="screen" id="scr-title">
+  <div class="panel">
+    <h1>Summit Pyramid</h1>
+    <p class="muted">A desert-night card ascent. Pair exposed cards to 21 and clear the pyramid before the stock runs out.</p>
+    <div class="menu">
+      <button class="primary" id="btn-play">Play</button>
+      <button id="btn-title-help">How to play</button>
+      <button id="btn-title-settings">Settings</button>
+      <button id="btn-title-board">Leaderboard</button>
+    </div>
+    <p class="muted" id="resume-line" hidden><button id="btn-resume">Resume last game</button></p>
+  </div>
+</div>
+
+<div class="screen" id="scr-modes" hidden>
+  <div class="panel">
+    <h2>Choose a mode</h2>
+    <div class="menu">
+      <button id="mode-learn">Learn <span class="muted">— interactive lessons</span></button>
+      <button id="mode-journey">Journey <span class="muted">— 40 stages</span></button>
+      <button id="mode-daily">Daily <span class="muted">— one shared seed per UTC day, ranked</span></button>
+      <button id="mode-practice">Practice <span class="muted">— pick a difficulty, unranked</span></button>
+      <button id="mode-challenge">Challenge <span class="muted">— constrained goals</span></button>
+      <button id="mode-score">Score chase <span class="muted">— leaderboards</span></button>
+    </div>
+    <div class="row"><button class="back" data-back="title">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-journey" hidden>
+  <div class="panel wide">
+    <h2>Journey</h2>
+    <p class="muted" id="journey-progress"></p>
+    <div class="stage-grid" id="stage-grid"></div>
+    <div class="row"><button class="back" data-back="modes">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-practice" hidden>
+  <div class="panel">
+    <h2>Practice</h2>
+    <div class="menu" id="diff-list"></div>
+    <div class="row"><label for="practice-seed">Seed (optional)</label>
+      <input id="practice-seed" inputmode="numeric" placeholder="random"></div>
+    <div class="row"><button class="back" data-back="modes">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-challenge" hidden>
+  <div class="panel">
+    <h2>Challenge</h2>
+    <div class="menu" id="challenge-list"></div>
+    <div class="row"><button class="back" data-back="modes">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-pause" hidden>
+  <div class="panel">
+    <h2>Paused</h2>
+    <p class="muted">Seed <b id="pause-seed"></b> · Moves <b id="pause-moves"></b></p>
+    <div class="menu">
+      <button class="primary" id="btn-resume-pause">Resume</button>
+      <button id="btn-pause-settings">Settings</button>
+      <button id="btn-pause-help">How to play</button>
+      <button id="btn-restart">Restart deal</button>
+      <button id="btn-quit">Leave round</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="scr-results" hidden>
+  <div class="panel">
+    <h2 id="result-headline">Result</h2>
+    <p id="result-reason" class="muted"></p>
+    <h3>Score breakdown</h3>
+    <table id="result-table"></table>
+    <p id="result-achievements"></p>
+    <p id="result-submit" class="muted"></p>
+    <div class="menu">
+      <button class="primary" id="btn-next">Next</button>
+      <button id="btn-retry">Retry</button>
+      <button id="btn-results-modes">Mode select</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="scr-help" hidden>
+  <div class="panel">
+    <h2>How to play</h2>
+    <div class="menu">
+      <div><h3>Pair to 21</h3><p>Cards are worth their rank (A=1 … K=13). Select two <b>uncovered</b> cards totaling 21 to remove them. A card is uncovered when both cards below it are gone (the bottom row is always uncovered).</p></div>
+      <div><h3>Stock and waste</h3><p>Press <b>D</b> or Draw to flip a stock card to the waste. The top waste card can pair with any uncovered pyramid card.</p></div>
+      <div><h3>Recycle</h3><p>When the stock is empty, press <b>R</b> to flip the waste back into a new stock — a limited number of times.</p></div>
+      <div><h3>Keyboard</h3><p>Arrows move between legal cards · Enter select · Esc cancel/pause · U undo · H hint · D draw · R recycle · C reset camera.</p></div>
+      <div><h3>Scoring</h3><p>+100 per pair · +1000 clearing the pyramid · +10 per unused stock card · +100 per unused recycle · −25 per invalid action.</p></div>
+    </div>
+    <div class="row"><button id="btn-help-tutorial">Replay tutorial</button><button class="back" data-back="auto">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-settings" hidden>
+  <div class="panel">
+    <h2>Settings</h2>
+    <h3>Audio</h3>
+    <div class="row"><label for="vol-music">Music</label><input type="range" id="vol-music" min="0" max="100"></div>
+    <div class="row"><label for="vol-fx">Effects</label><input type="range" id="vol-fx" min="0" max="100"></div>
+    <div class="row"><label for="vol-amb">Ambience</label><input type="range" id="vol-amb" min="0" max="100"></div>
+    <div class="row"><label for="opt-captions">Audio captions</label><input type="checkbox" id="opt-captions"></div>
+    <h3>Graphics</h3>
+    <div class="row"><label for="opt-tier">Quality tier</label>
+      <select id="opt-tier"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+    <div class="row"><label for="opt-motion">Reduced motion</label><input type="checkbox" id="opt-motion"></div>
+    <h3>Accessibility</h3>
+    <div class="row"><label for="opt-hc">High contrast</label><input type="checkbox" id="opt-hc"></div>
+    <div class="row"><label for="opt-lg">Larger text</label><input type="checkbox" id="opt-lg"></div>
+    <div class="row"><label for="opt-cvd">Color-vision palette</label>
+      <select id="opt-cvd"><option value="default">Default</option><option value="deuter">Deuteranopia-safe</option><option value="tritan">Tritanopia-safe</option></select></div>
+    <div class="row"><label for="opt-left">Left-handed controls</label><input type="checkbox" id="opt-left"></div>
+    <div class="row"><label for="opt-dom">2D board (screen-reader mode)</label><input type="checkbox" id="opt-dom"></div>
+    <div class="row"><button id="btn-settings-tutorial">Replay tutorial</button>
+      <button class="back" data-back="auto">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-board" hidden>
+  <div class="panel">
+    <h2>Leaderboards</h2>
+    <p class="muted" id="board-source"></p>
+    <h3>Global</h3><table id="board-global"></table>
+    <h3>Daily</h3><table id="board-daily"></table>
+    <div class="row"><button class="back" data-back="title">Back</button></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-tut" hidden>
+  <div class="panel" style="position:absolute;bottom:1em;left:50%;transform:translateX(-50%);max-width:560px">
+    <h3 id="tut-title"></h3>
+    <p id="tut-text"></p>
+    <p class="muted" id="tut-hint"></p>
+    <div class="row"><button id="btn-tut-skip">Skip lesson</button><button id="btn-tut-quit">Quit tutorial</button></div>
+  </div>
+</div>
+
+<script src="rules.js"></script>
+<script src="content.js"></script>
+<script type="module" src="app/main.js"></script>
+</body>
+</html>

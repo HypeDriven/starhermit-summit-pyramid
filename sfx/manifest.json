@@ -1,0 +1,74 @@
+[
+  {
+    "name": "card-select-1",
+    "seconds": 1,
+    "prompt": "A single playing card picked up off a felt card table with a short crisp paper snap",
+    "event": "select"
+  },
+  {
+    "name": "card-select-2",
+    "seconds": 1,
+    "prompt": "A playing card lightly flicked and lifted from a spread, quick paper tick",
+    "event": "select"
+  },
+  {
+    "name": "card-deselect",
+    "seconds": 1,
+    "prompt": "A playing card set back down softly onto a felt card table, gentle paper tap",
+    "event": "deselect"
+  },
+  {
+    "name": "pair-remove-1",
+    "seconds": 1,
+    "prompt": "Two playing cards swept together off a felt table, crisp paper slide ending in a bright snap",
+    "event": "removePair"
+  },
+  {
+    "name": "pair-remove-2",
+    "seconds": 1,
+    "prompt": "A matched pair of cards flicked away from a pyramid spread, quick paper whoosh and snap",
+    "event": "removePair"
+  },
+  {
+    "name": "invalid-buzz",
+    "seconds": 1,
+    "prompt": "A short low wooden knock on a hollow box, dull muted thud signaling a refused move",
+    "event": "invalid"
+  },
+  {
+    "name": "card-draw-1",
+    "seconds": 1,
+    "prompt": "A single playing card flipped over from the top of a deck, quick paper swish",
+    "event": "draw"
+  },
+  {
+    "name": "card-draw-2",
+    "seconds": 1,
+    "prompt": "A playing card dealt face-up onto a felt table, soft snap and short slide",
+    "event": "draw"
+  },
+  {
+    "name": "waste-recycle",
+    "seconds": 2,
+    "prompt": "A small stack of playing cards gathered, riffled and squared up into a fresh deck, cascading paper shuffle",
+    "event": "recycle"
+  },
+  {
+    "name": "undo-swoosh",
+    "seconds": 1,
+    "prompt": "A playing card swept back across a felt table, soft smooth paper swoosh",
+    "event": "undo"
+  },
+  {
+    "name": "win-fanfare",
+    "seconds": 3,
+    "prompt": "A bright celebratory cascade of small wind chimes rising in pitch, ending with one clear ringing bell",
+    "event": "win"
+  },
+  {
+    "name": "lose-fall",
+    "seconds": 3,
+    "prompt": "A slow descending phrase on a mellow wooden xylophone, fading out with a soft low thud",
+    "event": "lose"
+  }
+]
