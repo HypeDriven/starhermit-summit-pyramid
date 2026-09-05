@@ -5,8 +5,11 @@
  * Works in Node (module.exports) and the browser (globalThis.SummitRules).
  *
  * Pyramid solitaire variant: 7 rows / 28 cards, 24-card stock + waste.
- * Card values A=1..K=13. TARGET=21: pairs of exposed cards summing to 21
- * are removable. One member of a pair may be the waste top card.
+ * Card values A=1..K=13. TARGET=14: pairs of exposed cards summing to 14
+ * are removable (A=1+13=K, 2+Q, 3+J, 4+10, 5+9, 6+8, 7+7). This is the only
+ * sum for which EVERY rank has a partner in 1..13, so every card is removable
+ * and a full 7-row clear is reachable. One member of a pair may be the waste
+ * top card.
  * Stock flips one card at a time to waste; when the stock is empty the waste
  * may be recycled back a limited number of times (default 2).
  */
@@ -20,7 +23,7 @@
   const RULESET_VERSION = 1;
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
   const SUITS = ['C', 'D', 'H', 'S'];
-  const TARGET = 21;
+  const TARGET = 14;
   const ROWS = 7;
   const PYRAMID_SIZE = (ROWS * (ROWS + 1)) / 2; // 28
   const STOCK_SIZE = 52 - PYRAMID_SIZE; // 24

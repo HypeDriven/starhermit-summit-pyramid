@@ -65,7 +65,7 @@ function enterTutorialLesson() {
   if (renderer) { renderer.buildBoard(game.state, renderer.theme || themeFor('dusk')); renderer.resize(); }
   game.selection = [];
   ui.el['tut-hint'].textContent = lesson.require.type === 'remove'
-    ? (lesson.require.waste ? 'Pair the waste top card with a pyramid card.' : 'Select two exposed cards totaling 21.')
+    ? (lesson.require.waste ? 'Pair the waste top card with a pyramid card.' : 'Select two exposed cards totaling 14.')
     : lesson.require.type === 'draw' ? 'Press Draw (D).' : 'Press Recycle (R).';
 }
 
@@ -196,7 +196,7 @@ function advanceTutorial() {
 
 function explainError(err) {
   return {
-    'not-a-pair': 'Those cards do not total 21.',
+    'not-a-pair': 'Those cards do not total 14.',
     'card-covered': 'That card is still covered by cards below it.',
     'card-absent': 'That card is already removed.',
     'stock-empty': 'The stock is empty — recycle the waste if you can.',
@@ -219,7 +219,7 @@ function describeCards(state, refs) {
 function hintText() {
   const acts = R.legalActions(game.state);
   const rem = acts.find(a => a.type === 'remove');
-  if (rem) return 'Hint: ' + describeCards(game.state, rem.cards) + ' totals 21.';
+  if (rem) return 'Hint: ' + describeCards(game.state, rem.cards) + ' totals 14.';
   if (acts.some(a => a.type === 'draw')) return 'Hint: draw from the stock.';
   if (acts.some(a => a.type === 'recycle')) return 'Hint: recycle the waste.';
   return 'No moves left.';
@@ -249,7 +249,7 @@ function tapTarget(ref) {
   if (game.selection.length === 2) {
     doCommand({ type: 'remove', cards: game.selection.slice(0, 2) });
   } else {
-    ui.live('Selected ' + describeRef(ref) + '. Pick a second card totaling 21.');
+    ui.live('Selected ' + describeRef(ref) + '. Pick a second card totaling 14.');
     syncAll();
   }
 }

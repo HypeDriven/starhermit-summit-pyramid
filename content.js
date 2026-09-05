@@ -58,14 +58,14 @@
     id: 'learn', name: 'Learn the Summit',
     lessons: [
       {
-        id: 'pair', title: 'Pair to 21',
-        text: 'Cards are worth their rank (A=1 … K=13). Select two uncovered cards that total 21 to remove them.',
-        require: { type: 'remove' }, seed: 102
+        id: 'pair', title: 'Pair to 14',
+        text: 'Cards are worth their rank (A=1 … K=13). Select two uncovered cards that total 14 to remove them.',
+        require: { type: 'remove' }, seed: 1
       },
       {
         id: 'cover', title: 'Uncover the peak',
         text: 'A card is covered until both cards below it are removed. Clear pairs to uncover the cards above.',
-        require: { type: 'remove' }, seed: 102
+        require: { type: 'remove' }, seed: 2
       },
       {
         id: 'draw', title: 'Draw from the stock',

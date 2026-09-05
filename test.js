@@ -76,7 +76,7 @@ section('legal action types');
   const wTop = s4.waste[s4.waste.length - 1];
   const s5 = R.applyCommand(s4, wrem);
   ok(!s5.error && s5.waste.length === s4.waste.length - 1, 'waste remove applied');
-  ok(R.cardValue(wTop) + R.cardValue(s4.pyramid[wrem.cards.find(c => c.zone === 'pyramid').index]) === R.TARGET, 'waste pair sums to 21');
+  ok(R.cardValue(wTop) + R.cardValue(s4.pyramid[wrem.cards.find(c => c.zone === 'pyramid').index]) === R.TARGET, 'waste pair sums to 14');
 
   // recycle: drain stock first
   let s6 = s5;
@@ -108,7 +108,7 @@ section('invalid actions');
   ok(R.applyCommand(s, { type: 'remove', cards: [{ zone: 'pyramid', index: 0 }, { zone: 'pyramid', index: 27 }] }).error === 'card-covered', 'covered apex');
   ok(R.applyCommand(s, { type: 'remove', cards: [{ zone: 'pyramid', index: 99 }, { zone: 'pyramid', index: 27 }] }).error === 'bad-card-ref', 'out of range index');
   ok(R.applyCommand(s, { type: 'recycle' }).error === 'stock-not-empty', 'recycle with stock');
-  // not-a-pair: two exposed bottom cards that don't sum to 21
+  // not-a-pair: two exposed bottom cards that don't sum to 14
   const exp = R.exposedIndices(s.pyramid);
   let pair = null;
   for (let a = 0; a < exp.length && !pair; a++)
@@ -155,8 +155,8 @@ section('terminal states');
   // crafted win: one final exposed pair left
   const s = R.newGame(11);
   s.pyramid = s.pyramid.map(() => null);
-  s.pyramid[26] = 9;  // value 10
-  s.pyramid[27] = 10; // value 11
+  s.pyramid[26] = 7;  // value 8
+  s.pyramid[27] = 5;  // value 6  (8+6=14)
   s.stock = []; s.waste = []; s.recyclesLeft = 0; s.status = 'active';
   const cur = R.applyCommand(s, { type: 'remove', cards: [{ zone: 'pyramid', index: 26 }, { zone: 'pyramid', index: 27 }] });
   ok(!cur.error, 'final pair removable');
@@ -170,8 +170,8 @@ section('terminal states');
   s2.stock = []; s2.waste = []; s2.recyclesLeft = 0; s2.status = 'active';
   // force a status refresh through a command: recycle attempt is an error (no status), so use undo-less draw? craft via applyCommand on remove... simply call newGame-like update via a no-op remove? Use applyCommand with a legal-ish but failing command won't refresh. Instead remove nothing: emulate by applying 'draw' error then check isTerminal is based on status; do a valid action path:
   // Easiest: temporarily give a pair elsewhere? No — status updated only on successful commands. Make pyramid contain a pair to remove:
-  s2.pyramid[25] = 12; s2.pyramid[26] = 4; s2.pyramid[27] = 7; // values 13,5,8: 13+8=21
-  const r = R.applyCommand(s2, { type: 'remove', cards: [{ zone: 'pyramid', index: 25 }, { zone: 'pyramid', index: 27 }] });
+  s2.pyramid[25] = 4; s2.pyramid[26] = 8; s2.pyramid[27] = 3; // values 5,9,4: 5+9=14, leaves value 4 alone → no-moves
+  const r = R.applyCommand(s2, { type: 'remove', cards: [{ zone: 'pyramid', index: 25 }, { zone: 'pyramid', index: 26 }] });
   ok(!r.error, 'crafted remove ok');
   const t2 = R.isTerminal(r);
   ok(t2.over && !t2.won && t2.reason === 'no-moves', 'no-moves loss');
