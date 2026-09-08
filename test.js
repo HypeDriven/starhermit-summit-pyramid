@@ -7,6 +7,11 @@ const R = require('./rules.js');
 const C = require('./content.js');
 const G = require('./game.js');
 
+// The live-server HTTP tests must not mutate the shipped data/ store —
+// point the server's persistence at a throwaway temp dir before it loads.
+process.env.SUMMIT_DATA_DIR = require('fs').mkdtempSync(
+  require('path').join(require('os').tmpdir(), 'summit-data-'));
+
 let passed = 0;
 function ok(cond, msg) {
   if (!cond) { console.error('FAIL:', msg); process.exitCode = 1; throw new Error(msg); }
@@ -358,6 +363,10 @@ async function httpTests() {
     ok(typeof t.now === 'number' && Math.abs(t.now - Date.now()) < 5000, 'time endpoint');
     const idx = await fetch(url('/'));
     ok(idx.status === 200 && (await idx.text()).includes('Summit Pyramid'), 'index served');
+    ok((await fetch(url('/data/leaderboard.json'))).status === 403, 'data store not served statically');
+    ok((await fetch(url('/.gitignore'))).status === 403, 'dotfiles not served');
+    ok((await fetch(url('/%zz'))).status === 400, 'malformed percent-encoding rejected');
+    ok((await fetch(url('/rules.js'))).status === 200, 'legitimate static file served');
     const g = greedyGame(777);
     const score = R.scoreComponents(g.s).total;
     const post = (p, b) => fetch(url(p), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
@@ -377,6 +386,8 @@ async function httpTests() {
     ok((await dup.json()).deduped === true, 'duplicate commands deduped');
     const ach = await post('/api/v1/achievement', { id: 'first-clear' });
     ok(ach.status === 200, 'achievement accepted');
+    const badAch = await post('/api/v1/achievement', { id: 'not-a-real-one' });
+    ok(badAch.status === 400, 'unknown achievement id rejected');
     const boards = await (await fetch(url('/api/v1/leaderboards'))).json();
     ok(boards.global.some(e => e.score === score), 'leaderboard contains entry');
   } finally {

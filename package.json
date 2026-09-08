@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Summit Pyramid - card pairing puzzle game (browser)",
-  "license": "UNLICENSED",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
     "test": "node test.js",
     "test:e2e": "node tests/e2e.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

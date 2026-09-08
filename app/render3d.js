@@ -5,7 +5,7 @@ import * as THREE from '../vendor/three.module.min.js';
 
 const CARD_W = 1, CARD_H = 1.42, CARD_T = 0.03;
 const ROW_GAP = 1.06, COL_GAP = 1.06;
-const CAM_HOME = { pos: [0, 7.6, 8.6], look: [0, 0.4, 2.6] };
+const CAM_HOME = { pos: [0, 10.6, 10.4], look: [0, 0, 2.1] };
 
 const TIERS = {
   low: { pixelRatio: 1, shadows: false, stars: 900, particles: 0 },
@@ -25,6 +25,15 @@ function mulberry(seed) {
 
 const SUIT_GLYPH = ['♣', '♦', '♥', '♠'];
 const RANK_LABEL = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+/* Dispose geometry + materials of a mesh. Textures are shared via texCache
+   and are intentionally NOT disposed here. */
+function disposeMesh(m) {
+  if (!m) return;
+  if (m.geometry) m.geometry.dispose();
+  const mats = Array.isArray(m.material) ? m.material : (m.material ? [m.material] : []);
+  for (const mat of new Set(mats)) mat.dispose();
+}
 
 export class Renderer3D {
   constructor(canvas, settings) {
@@ -77,7 +86,7 @@ export class Renderer3D {
     // dispose previous
     while (this.envGroup.children.length) {
       const c = this.envGroup.children.pop();
-      c.geometry && c.geometry.dispose();
+      disposeMesh(c);
       this.envGroup.remove(c);
     }
     const rnd = mulberry((seed || 1) ^ 0x9e37);
@@ -200,13 +209,14 @@ export class Renderer3D {
   }
 
   makeCardMesh(card, theme) {
-    const mats = [];
+    // BoxGeometry(w, t, h): the card-sized faces are ±y (material slots 2/3),
+    // the thin edges are ±x/±z. Face art goes on +y, the back motif on -y.
     const edge = new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.8 });
-    for (let i = 0; i < 4; i++) mats.push(edge);
-    mats.push(card == null
+    const face = card == null
       ? new THREE.MeshStandardMaterial({ map: this.backTexture(theme), roughness: 0.7 })
-      : new THREE.MeshStandardMaterial({ map: this.cardTexture(card, this.settings.cvd), roughness: 0.7 }));
-    mats.push(edge);
+      : new THREE.MeshStandardMaterial({ map: this.cardTexture(card, this.settings.cvd), roughness: 0.7 });
+    const back = new THREE.MeshStandardMaterial({ map: this.backTexture(theme), roughness: 0.7 });
+    const mats = [edge, edge, face, back, edge, edge];
     const m = new THREE.Mesh(new THREE.BoxGeometry(CARD_W, CARD_T, CARD_H), mats);
     m.castShadow = true; m.receiveShadow = true;
     return m;
@@ -228,30 +238,32 @@ export class Renderer3D {
     this.theme = theme;
     while (this.gameplay.children.length) {
       const c = this.gameplay.children.pop();
-      c.geometry && c.geometry.dispose();
+      disposeMesh(c);
       this.gameplay.remove(c);
     }
     this.cardMeshes = new Array(28).fill(null);
+    this.wasteTopCard = undefined;
     for (let i = 0; i < 28; i++) {
       if (state.pyramid[i] == null) continue;
       const mesh = this.makeCardMesh(state.pyramid[i], theme);
       const [x, y, z] = this.pyramidPos(i);
       mesh.position.set(x, y, z);
-      mesh.rotation.x = -Math.PI / 2 + 0.42;   // lean toward camera
+      mesh.rotation.x = 0.42;   // face-up, leaning toward the camera
       mesh.userData = { zone: 'pyramid', index: i };
       this.gameplay.add(mesh);
       this.cardMeshes[i] = mesh;
     }
     // stock pile
     this.stockMesh = this.makeCardMesh(null, theme);
-    this.stockMesh.position.set(-4.6, 0.06, 5.6);
-    this.stockMesh.rotation.x = -Math.PI / 2;
+    this.stockMesh.position.set(-4.25, 0.06, 5.6);
+    this.stockMesh.rotation.x = Math.PI;   // face down, back motif up
     this.stockMesh.userData = { zone: 'stock' };
     this.gameplay.add(this.stockMesh);
     // waste
     this.wasteMesh = null;
     this.syncState(state, []);
     // selection marker ring
+    if (this.marker) { this.scene.remove(this.marker); disposeMesh(this.marker); }
     this.marker = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, 32),
       new THREE.MeshBasicMaterial({ color: theme.marker, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
     this.marker.rotation.x = -Math.PI / 2;
@@ -264,7 +276,12 @@ export class Renderer3D {
     for (let i = 0; i < 28; i++) {
       const mesh = this.cardMeshes[i];
       if (!mesh) continue;
-      if (state.pyramid[i] == null) { mesh.visible = false; continue; }
+      if (state.pyramid[i] == null) {
+        // keep a card visible while its removal flight animation runs
+        if (!mesh.userData.removing) mesh.visible = false;
+        continue;
+      }
+      mesh.visible = true;   // undo may restore a previously removed card
       const sel = selection.some(s => s.zone === 'pyramid' && s.index === i);
       const [x, y, z] = this.pyramidPos(i);
       const targetY = y + (sel ? 0.35 : 0);
@@ -273,17 +290,28 @@ export class Renderer3D {
     }
     // stock visibility
     this.stockMesh.visible = state.stock.length > 0;
-    // waste top
-    if (this.wasteMesh) { this.gameplay.remove(this.wasteMesh); this.wasteMesh.geometry.dispose(); this.wasteMesh = null; }
-    if (state.waste.length) {
-      const top = state.waste[state.waste.length - 1];
-      this.wasteMesh = this.makeCardMesh(top, this.theme);
-      this.wasteMesh.position.set(-3.3, 0.06, 5.6);
-      this.wasteMesh.rotation.x = -Math.PI / 2;
-      this.wasteMesh.userData = { zone: 'waste' };
+    // waste top — rebuild the mesh only when the top card actually changes
+    const top = state.waste.length ? state.waste[state.waste.length - 1] : null;
+    if (top !== this.wasteTopCard) {
+      this.wasteTopCard = top;
+      if (this.wasteMesh && !this.wasteMesh.userData.removing) {
+        this.gameplay.remove(this.wasteMesh);
+        disposeMesh(this.wasteMesh);
+        this.wasteMesh = null;
+      }
+      if (top != null) {
+        this.wasteMesh = this.makeCardMesh(top, this.theme);
+        this.wasteMesh.position.set(-2.95, 0.06, 5.6);
+        this.wasteMesh.rotation.x = 0;   // face up
+        this.wasteMesh.userData = { zone: 'waste' };
+        this.gameplay.add(this.wasteMesh);
+      } else this.wasteMesh = null;
+    }
+    if (this.wasteMesh && !this.wasteMesh.userData.removing) {
       const sel = selection.some(s => s.zone === 'waste');
-      if (sel) this.wasteMesh.position.y += 0.35;
-      this.gameplay.add(this.wasteMesh);
+      const targetY = 0.06 + (sel ? 0.35 : 0);
+      if (this.settings.reducedMotion) this.wasteMesh.position.y = targetY;
+      else this.tween(this.wasteMesh.position, { y: targetY }, 140);
     }
     // marker at first selection
     if (selection.length && this.marker) {
@@ -305,7 +333,7 @@ export class Renderer3D {
     if (this.settings.reducedMotion || !meshes.length) { done(); return; }
     const start = performance.now();
     const dur = 320;
-    meshes.forEach(m => { m.userData.flyFrom = m.position.clone(); });
+    meshes.forEach(m => { m.userData.removing = true; m.userData.flyFrom = m.position.clone(); });
     const step = () => {
       const t = Math.min(1, (performance.now() - start) / dur);
       for (const m of meshes) {
@@ -314,7 +342,14 @@ export class Renderer3D {
         m.scale.setScalar(1 - t * 0.4);
       }
       if (t < 1) requestAnimationFrame(step);
-      else { meshes.forEach(m => { m.visible = false; m.scale.setScalar(1); m.rotation.z = 0; }); done(); }
+      else {
+        meshes.forEach(m => {
+          delete m.userData.removing;
+          m.visible = false; m.scale.setScalar(1); m.rotation.z = 0;
+          if (m.userData.zone === 'waste') { this.gameplay.remove(m); disposeMesh(m); }
+        });
+        done();
+      }
     };
     step();
   }
@@ -343,8 +378,15 @@ export class Renderer3D {
   }
 
   resetCamera() {
-    this.camera.position.set(...CAM_HOME.pos);
-    this.camera.lookAt(...CAM_HOME.look);
+    // pull back from the home position on narrow (portrait) viewports so the
+    // full pyramid width stays inside the frame
+    const s = this.camScale || 1;
+    const [lx, ly, lz] = CAM_HOME.look;
+    this.camera.position.set(
+      lx + (CAM_HOME.pos[0] - lx) * s,
+      ly + (CAM_HOME.pos[1] - ly) * s,
+      lz + (CAM_HOME.pos[2] - lz) * s);
+    this.camera.lookAt(lx, ly, lz);
   }
 
   resize() {
@@ -352,6 +394,8 @@ export class Renderer3D {
     const w = el.clientWidth, h = el.clientHeight;
     if (!w || !h) return;
     this.camera.aspect = w / h;
+    this.camScale = Math.max(1, 0.92 / this.camera.aspect);
+    this.resetCamera();
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIERS[this.settings.tier].pixelRatio));
     this.renderer.setSize(w, h, false);

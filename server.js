@@ -11,10 +11,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { R, validateScoreClaim } = require('./game.js');
+const { R, C, validateScoreClaim } = require('./game.js');
 
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, 'data');
+const DATA_DIR = process.env.SUMMIT_DATA_DIR
+  ? path.resolve(process.env.SUMMIT_DATA_DIR)
+  : path.join(ROOT, 'data');
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const MAX_BODY = 256 * 1024;
 const MAX_BOARD = 100;
@@ -150,6 +152,7 @@ function createServer() {
           catch (e) { return send(res, 400, { error: 'bad-json' }); }
           const id = String(body && body.id || '');
           if (!/^[a-z0-9-]{3,40}$/.test(id)) return send(res, 400, { error: 'bad-achievement-id' });
+          if (!C.ACHIEVEMENTS.some(a => a.id === id)) return send(res, 400, { error: 'unknown-achievement' });
           if (!db.achievements[id]) {           // idempotent
             db.achievements[id] = { count: 1, first: Date.now() };
           } else db.achievements[id].count++;
@@ -167,10 +170,16 @@ function createServer() {
     // static files
     if (req.method !== 'GET' && req.method !== 'HEAD')
       return send(res, 405, { error: 'method-not-allowed' });
-    let p = decodeURIComponent(u.pathname);
+    let p;
+    try { p = decodeURIComponent(u.pathname); }
+    catch (e) { return send(res, 400, { error: 'bad-request' }); }
     if (p === '/') p = '/index.html';
     const file = path.normalize(path.join(ROOT, p));
-    if (!file.startsWith(ROOT) || file.includes('\0')) return send(res, 403, { error: 'forbidden' });
+    if (!file.startsWith(ROOT + path.sep) || file.includes('\0')) return send(res, 403, { error: 'forbidden' });
+    const rel = path.relative(ROOT, file).split(path.sep);
+    // never serve dotfiles/VCS metadata or the mutable data/ store
+    if (rel.some(seg => seg.startsWith('.')) || rel[0] === 'data')
+      return send(res, 403, { error: 'forbidden' });
     fs.readFile(file, (err, data) => {
       if (err) return send(res, 404, { error: 'not-found' });
       res.writeHead(200, {

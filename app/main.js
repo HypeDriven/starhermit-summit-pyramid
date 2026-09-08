@@ -38,6 +38,7 @@ function startRound(cfg) {
     startedAt: Date.now()
   };
   const theme = themeFor(cfg.themeId || C.THEMES[(cfg.seed % C.THEMES.length)]?.id || 'dusk');
+  kbFocus = null;
   if (renderer) {
     renderer.settings = save.settings;
     renderer.buildEnv(theme, cfg.seed);
@@ -329,6 +330,7 @@ function bind() {
     game.state = snap.state;
     game.commands = snap.commands || [];
     game.used = new Set(snap.used || []);
+    persistSnapshot();   // keep the resumable snapshot at the restored position
     syncAll();
   });
   on('btn-title-help', () => { ui.returnTo = 'scr-title'; ui.show('scr-help'); });
@@ -346,7 +348,11 @@ function bind() {
       b.innerHTML = d.label + ' <span class="muted">— ' + d.description + '</span>';
       b.addEventListener('click', () => {
         const raw = ui.el['practice-seed'].value.trim();
-        const seed = raw ? (parseInt(raw, 10) >>> 0) : randomSeed();
+        let seed = randomSeed();
+        if (raw) {
+          if (!/^\d{1,10}$/.test(raw)) { ui.toast('Seeds are numbers only — using a random deal.'); }
+          else seed = parseInt(raw, 10) >>> 0;
+        }
         startRound({
           mode: 'practice', label: 'Practice — ' + d.label, seed,
           options: { recycles: d.recycles }, ranked: false

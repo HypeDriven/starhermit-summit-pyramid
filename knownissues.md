@@ -53,3 +53,83 @@ the legal-action state space for representative deals.
 
 - Hosted (StarHermit `/api`) session flow and server persistence beyond what `test.js`'s
   server round-trip and the offline e2e path exercise.
+
+---
+
+# Review pass 2 (2026-09-08)
+
+Second review of the same surface plus the Three.js render layer, server static
+file handling, and mobile layout. All findings below are FIXED and verified.
+
+## Test results (this pass)
+
+| Check | Result |
+| --- | --- |
+| `npm test` (`test.js`) | All tests passed (1061 assertions), exit 0 |
+| `npm run test:e2e` (`tests/e2e.mjs`, headless Chrome) | PASS — desktop + mobile, no page errors |
+| Targeted 3D browser smoke (headless Chrome, real keyboard + canvas clicks) | PASS — removal flight animation visible, undo restores card visibility in 3D, raycast picking removes a real pair, pause/resume OK, no page errors |
+| Portrait viewport (390×844) screenshot check | Pyramid fully in frame; tray fully visible |
+
+## Defects found and fixed
+
+1. **3D card faces never visible (critical).** `makeCardMesh` mapped the card
+   face texture onto the `+z` material slot of `BoxGeometry(w, 0.03, h)` — a
+   0.03-unit-thick edge — and rotated cards `-π/2+0.42`, so players only ever
+   saw the plain edge-colored big faces. No rank/suit was ever readable in 3D;
+   the game was unplayable without the 2D fallback. Face art is now on `+y`
+   (back motif on `-y`), pyramid cards lean face-up toward the camera, the
+   stock shows its back, the waste shows its face, and the camera home was
+   re-framed for the now-visible layout. Verified with real canvas clicks
+   removing an actual pair (8♦+6♥).
+2. **Undo left restored cards invisible in 3D.** `syncState` only ever set
+   `mesh.visible = false` for removed cards, never `true` for present ones, so
+   an undone removal stayed hidden. Fixed; also fixes the race where undo
+   during the removal flight was clobbered by the animation's end frame.
+3. **Removal flight animation never rendered.** `doCommand` calls `syncAll()`
+   synchronously right after starting `animateRemoval`, which hid the pyramid
+   meshes and detached the waste mesh before the first animation frame. Meshes
+   now carry a `removing` flag that `syncState` respects until the flight ends.
+   Verified visible mid-flight in a headless-Chrome screenshot.
+4. **Portrait/mobile camera clipped the pyramid.** Fixed home framing assumed a
+   wide viewport; at 390×844 the bottom row was cut off horizontally and the
+   tray's second row overflowed the viewport. The camera now pulls back
+   (`camScale = max(1, 0.92/aspect)`) on narrow aspects, and small-screen CSS
+   (tray button sizing, hide seed chip) keeps all controls inside 100vh.
+5. **Mesh/material leaks.** `buildEnv`/`buildBoard` disposed geometries but not
+   materials; the waste mesh (three materials) was rebuilt on *every* sync; a
+   new selection marker ring was added to the scene every round without
+   removing the old one. All now disposed/reused; the waste mesh rebuilds only
+   when the top card actually changes.
+6. **`#live-err` assertive live region was visible page text.** Only `#live`
+   had the visually-hidden CSS; error announcements appeared as stray permanent
+   text at the top of the page. Both regions now share the rule.
+7. **Server static handler served `data/` and dotfiles, and crashed on bad
+   encodings.** `/data/leaderboard.json` and `/.gitignore` were served with
+   200; `decodeURIComponent` on malformed input threw outside any handler.
+   Now: `data/` and dot-segments → 403, malformed percent-encoding → 400,
+   prefix check uses `ROOT + path.sep`. Regression assertions added to
+   `test.js`.
+8. **`test.js` mutated the shipped `data/` store.** The live-server HTTP tests
+   wrote the seed-777 test entry, 72 `seen` command ids, and achievement
+   counters into `data/leaderboard.json`/`data/achievements.json` on every run.
+   `server.js` now honors `SUMMIT_DATA_DIR`; the test points it at a fresh
+   temp dir. The polluted data files were reset to empty defaults.
+9. **Achievement endpoint accepted arbitrary ids.** Any regex-valid string was
+   recorded. Now validated against the declared `content.js` ACHIEVEMENTS set
+   (unknown → 400; covered by a new test assertion).
+10. **Small client fixes.** `kbFocus` is reset on round start; resuming a saved
+    game re-persists the restored snapshot (previously a reload before the next
+    move resumed from scratch); the practice seed field rejects non-numeric
+    input with a toast instead of silently playing seed 0.
+
+## Root instruction compliance
+
+- Added `LICENSE.md` (PolyForm Noncommercial 1.0.0), required by the repo-root
+  instructions; it was missing.
+
+## Known gaps (not addressed this pass)
+
+- No text localization (`agents/localization.md` lists 9 locales); the UI is
+  English-only. This is a feature-sized change, not a bug fix.
+- Rate-limit token buckets in `server.js` grow unboundedly with distinct IPs
+  (in-memory only; resets on restart).

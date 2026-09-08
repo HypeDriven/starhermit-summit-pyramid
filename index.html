@@ -29,7 +29,7 @@ header#topbar{display:flex;flex-wrap:wrap;gap:.4em 1em;align-items:center;paddin
 header#topbar .spacer{flex:1}
 #objective{font-weight:600}
 #score-wrap{font-variant-numeric:tabular-nums}
-#live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#live,#live-err{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 main{position:relative;flex:1;display:flex;min-height:0}
 #gl-wrap{position:relative;flex:1;min-width:0}
 #gl{width:100%;height:100%;display:block;touch-action:none}
@@ -71,8 +71,11 @@ td,th{padding:.25em .5em;text-align:left;border-bottom:1px solid #2a3355}
   font-style:italic;z-index:9;pointer-events:none;display:none}
 @media (max-width:720px){
   header#topbar{font-size:.9em}
+  #seed-wrap{display:none}
   .card-btn{width:38px;height:52px}
   .panel{padding:.8em}
+  #tray{gap:.35em;padding:.35em}
+  #tray button{min-height:40px;padding:.35em .55em}
 }
 </style>
 </head>
