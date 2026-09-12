@@ -4,7 +4,7 @@
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
 import { Renderer3D } from './render3d.js';
-import { loadSave, storeSave, Api } from './session.js';
+import { loadSave, storeSave, Platform } from './session.js';
 
 const R = globalThis.SummitRules;
 const C = globalThis.SummitContent;
@@ -12,7 +12,18 @@ const C = globalThis.SummitContent;
 const ui = new UI();
 const save = loadSave();
 const audio = new AudioEngine(save.settings, m => ui.caption(m));
-const api = new Api();
+const api = new Platform();
+
+/* Local save stays the offline cache; the cloud slot is a mirror (hosted only). */
+function persistSave() {
+  storeSave(save);
+  api.queueCloudSave(save);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 let flow = 'boot';            // boot|title|modes|preparing|tutorial|active|paused|resolving|results
 let renderer = null;
@@ -96,7 +107,7 @@ function endRound(terminal) {
   if (won && (!save.best[bestKey] || score.total > save.best[bestKey].score))
     save.best[bestKey] = { score: score.total, seed: game.state.seed };
   save.snapshot = null;
-  storeSave(save);
+  persistSave();
 
   // submit ranked results
   let submitNote = 'Unranked local game.';
@@ -107,13 +118,15 @@ function endRound(terminal) {
     (won ? audio.win() : audio.lose());
     ui.live(terminal.won ? 'You win. Score ' + score.total : 'Round over. Score ' + score.total);
   };
-  if (ranked && api.available) {
+  if (ranked && api.devApi) {
     api.submitScore({
       seed: game.state.seed, rulesetVersion: R.RULESET_VERSION, options: game.state.options,
       mode: game.cfg.mode, dailyId: game.cfg.mode === 'daily' ? C.dailyId(new Date(api.now())) : undefined,
       commands: game.commands, claimedScore: score.total, durationMs: Date.now() - game.startedAt
     }).then(r => finish('Score validated and submitted (rank ' + (r.rank || '—') + ').'))
       .catch(e => finish('Submission rejected: ' + e.message));
+  } else if (ranked && api.hosted) {
+    finish('Ranked round recorded in your cloud save — the StarHermit board is a read-only view of platform-validated play.');
   } else if (ranked) finish('Ranked game recorded locally (no server connection).');
   else finish(submitNote);
 }
@@ -128,9 +141,9 @@ function grant(id, unlocked) {
 }
 
 function persistSnapshot() {
-  if (!game || game.cfg.tutorial) { save.snapshot = null; storeSave(save); return; }
+  if (!game || game.cfg.tutorial) { save.snapshot = null; persistSave(); return; }
   save.snapshot = { cfg: game.cfg, state: game.state, commands: game.commands, used: [...game.used] };
-  storeSave(save);
+  persistSave();
 }
 
 /* ---------- command application ---------- */
@@ -186,7 +199,7 @@ function advanceTutorial() {
   audio.select();
   if (game.tutorialStep >= C.TUTORIAL.lessons.length) {
     save.settings.tutorialDone = true;
-    storeSave(save);
+    persistSave();
     ui.toast('Lessons complete!');
     quitToModes();
     return;
@@ -415,7 +428,7 @@ function bind() {
   on('btn-pause-settings', () => { ui.returnTo = 'pause'; ui.show('scr-settings'); });
   on('btn-pause-help', () => { ui.returnTo = 'pause'; ui.show('scr-help'); });
   on('btn-restart', () => { const cfg = game.cfg; startRound(cfg); });
-  on('btn-quit', () => { save.snapshot = null; storeSave(save); quitToModes(); });
+  on('btn-quit', () => { save.snapshot = null; persistSave(); quitToModes(); });
 
   // results
   on('btn-retry', () => startRound(game.cfg));
@@ -462,7 +475,7 @@ function bind() {
 function bindSettings() {
   const s = save.settings;
   const upd = () => {
-    storeSave(save);
+    persistSave();
     ui.applySettingsToDom(s);
     audio.applyVolumes();
     if (renderer) {
@@ -538,31 +551,71 @@ function navTargets() {
 
 async function showLeaderboards() {
   ui.show('scr-board');
+  const me = api.displayName() || 'You';
   const renderLocal = note => {
     ui.el['board-source'].textContent = note;
     const rows = Object.entries(save.best)
       .sort((a, b) => b[1].score - a[1].score).slice(0, 10)
-      .map(([k, v], i) => '<tr><td>' + (i + 1) + '</td><td>' + k + '</td><td style="text-align:right">' + v.score + '</td></tr>');
-    ui.el['board-global'].innerHTML = rows.join('') || '<tr><td class="muted">No local scores yet.</td></tr>';
+      .map(([k, v], i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(me) + '</td><td>' + esc(k) + '</td><td style="text-align:right">' + v.score + '</td></tr>');
+    ui.el['board-global'].innerHTML = rows.join('') || '<tr><td class="muted">No personal bests yet.</td></tr>';
     ui.el['board-daily'].innerHTML = '<tr><td class="muted">—</td></tr>';
   };
-  if (!api.available) { renderLocal('Local board (casual — no server connection).'); return; }
+  if (api.hosted) {
+    // Platform board is read-only (clients can never submit scores).
+    try {
+      const entries = await api.boardEntries(false);
+      if (!entries) { renderLocal('Personal bests (this game has no platform leaderboard).'); return; }
+      ui.el['board-source'].textContent = 'StarHermit leaderboard — read-only. Personal bests are in your cloud save.';
+      ui.el['board-global'].innerHTML = entries.map((e, i) =>
+        '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + (e.me ? ' (you)' : '') + '</td><td style="text-align:right">' + e.score + '</td></tr>'
+      ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
+      ui.el['board-daily'].innerHTML = '<tr><td class="muted">—</td></tr>';
+    } catch (e) { renderLocal('Personal bests (platform board unavailable).'); }
+    return;
+  }
+  if (!api.devApi) { renderLocal('Personal bests (casual — no server connection).'); return; }
   try {
-    const boards = await api.leaderboards();
-    if (!boards) { renderLocal('Local board (server unreachable).'); return; }
-    ui.el['board-source'].textContent = 'Validated global rankings.';
+    const boards = await api.devBoards();
+    if (!boards) { renderLocal('Personal bests (server unreachable).'); return; }
+    ui.el['board-source'].textContent = 'Validated rankings (dev server).';
     ui.el['board-global'].innerHTML = (boards.global || []).map((e, i) =>
-      '<tr><td>' + (i + 1) + '</td><td>seed ' + e.seed + '</td><td>' + e.mode + '</td><td style="text-align:right">' + e.score + '</td></tr>'
+      '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name || 'Player') + '</td><td>seed ' + e.seed + '</td><td>' + esc(e.mode) + '</td><td style="text-align:right">' + e.score + '</td></tr>'
     ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
     ui.el['board-daily'].innerHTML = (boards.daily || []).map((e, i) =>
-      '<tr><td>' + (i + 1) + '</td><td>' + e.dailyId + '</td><td style="text-align:right">' + e.score + '</td></tr>'
+      '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name || 'Player') + '</td><td>' + esc(e.dailyId) + '</td><td style="text-align:right">' + e.score + '</td></tr>'
     ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
-  } catch (e) { renderLocal('Local board (error).'); }
+  } catch (e) { renderLocal('Personal bests (error).'); }
 }
 
 /* ---------- boot ---------- */
 
-function boot() {
+function refreshIdentity() {
+  ui.el['player-name'].textContent = api.displayName() || '';
+  ui.el['sync-status'].textContent = api.hosted
+    ? { synced: 'cloud synced', saving: 'saving…', error: 'sync error — retrying', offline: 'offline' }[api.syncState] || 'cloud synced'
+    : '';
+  ui.el['title-status'].textContent = api.statusLine();
+}
+
+function adoptRemote(remote) {
+  // Remote wins on conflict; keep the settings object identity (audio/renderer
+  // hold a reference to it) and localStorage as the offline cache.
+  for (const k of Object.keys(save)) {
+    if (k === 'settings') Object.assign(save.settings, remote.settings || {});
+    else save[k] = remote[k];
+  }
+  storeSave(save);
+}
+
+async function boot() {
+  await api.init();
+  api.onSyncChange = refreshIdentity;
+  if (api.hosted) {
+    const remote = await api.pullCloudSave();
+    if (remote) adoptRemote(remote);
+    else api.queueCloudSave(save);   // no remote doc yet → push the local one
+  }
+  refreshIdentity();
   ui.applySettingsToDom(save.settings);
   bind();
   ui.buildBoard(R);
@@ -577,7 +630,7 @@ function boot() {
     ui.el['board-dom'].classList.add('visible');
     ui.toast('3D unavailable — using the accessible 2D board. Your progress is preserved.', 6000);
   }
-  api.detect().then(ok => { if (ok) ui.toast('Connected to ranking server.'); });
+  if (api.devApi) ui.toast('Connected to ranking server.');
   goTitle();
   flow = 'title';
 }

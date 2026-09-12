@@ -92,6 +92,7 @@ function readBody(req) {
 
 function scoreEntry(e) {
   return {
+    name: String(e.name || 'Player').slice(0, 24),
     seed: e.seed, mode: String(e.mode || 'score').slice(0, 24),
     dailyId: e.dailyId ? String(e.dailyId).slice(0, 10) : undefined,
     score: e.score, moves: e.moves, hash: e.hash,
