@@ -39,7 +39,7 @@ Score removed pairs, cleared peaks, and unused stock cycles. Results show a comp
 
 ### Modes
 
-- **Learn:** interactive lessons introduce one rule at a time and require the player to perform the action.
+- **Learn:** interactive lessons introduce one rule at a time and require the player to perform the action. The lesson panel is non-modal: it sits above the action tray (docked right in short landscape) and the board stays clickable around it, with the camera framed inside the uncovered canvas area. The page is a definite-height flex root so the tray is always inside the viewport.
 - **Journey:** authored progression with gradually combined mechanics and periodic mastery stages.
 - **Daily:** one shared seed and ruleset per UTC day, synchronized to platform time.
 - **Practice:** selectable difficulty, restart, undo where rules permit, and no effect on competitive rating.

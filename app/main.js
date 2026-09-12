@@ -467,6 +467,32 @@ function bind() {
 
   window.addEventListener('keydown', onKey);
   window.addEventListener('resize', () => { if (renderer) renderer.resize(); });
+  // refit when the lesson panel appears/disappears or changes size, and when
+  // the iframe itself changes size without a window resize event
+  {
+    let raf = 0;
+    const refit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // the lesson panel sits above the tray and below the top bar
+        const tray = document.getElementById('tray'), top = document.getElementById('topbar');
+        document.documentElement.style.setProperty('--tray-h', (tray ? tray.offsetHeight : 0) + 'px');
+        document.documentElement.style.setProperty('--top-h', (top ? top.offsetHeight : 0) + 'px');
+        if (renderer) renderer.resize();
+      });
+    };
+    const tut = document.getElementById('scr-tut');
+    if (tut) new MutationObserver(refit).observe(tut, { attributes: true, attributeFilter: ['hidden'] });
+    if (typeof ResizeObserver === 'function') {
+      const ro = new ResizeObserver(refit);
+      const panel = tut && tut.querySelector('.tut-panel');
+      if (panel) ro.observe(panel);
+      const wrap = document.getElementById('gl-wrap');
+      if (wrap) ro.observe(wrap);
+      const tray = document.getElementById('tray');
+      if (tray) ro.observe(tray);
+    }
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && flow === 'active') pauseGame(true);
   });

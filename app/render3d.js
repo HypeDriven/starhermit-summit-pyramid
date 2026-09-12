@@ -389,11 +389,32 @@ export class Renderer3D {
     this.camera.lookAt(lx, ly, lz);
   }
 
+  // Part of the canvas covered by the lesson panel (or other chrome laid over
+  // it); the board is framed inside the remaining rectangle via a view offset.
+  _safeRect(w, h) {
+    let top = 0, bottom = h, left = 0, right = w;
+    const host = this.renderer.domElement.getBoundingClientRect();
+    const tut = document.querySelector('#scr-tut:not([hidden]) .tut-panel');
+    if (tut) {
+      const r = tut.getBoundingClientRect();
+      const rr = { x: r.left - host.left, y: r.top - host.top, w: r.width, h: r.height };
+      if (rr.w < w * 0.5 && rr.h > h * 0.5) { if (rr.x + rr.w / 2 < w / 2) left = rr.x + rr.w; else right = rr.x; }
+      else if (rr.y + rr.h / 2 > h / 2) bottom = Math.min(bottom, rr.y); else top = Math.max(top, rr.y + rr.h);
+    }
+    if (right - left < w * 0.4) { left = 0; right = w; }
+    if (bottom - top < h * 0.4) { top = 0; bottom = h; }
+    return { x: left, y: top, w: right - left, h: bottom - top };
+  }
+
   resize() {
     const el = this.renderer.domElement.parentElement;
     const w = el.clientWidth, h = el.clientHeight;
     if (!w || !h) return;
-    this.camera.aspect = w / h;
+    const sr = this._safeRect(w, h);
+    const pad = 6;
+    const sw = Math.max(1, sr.w - pad * 2), sh = Math.max(1, sr.h - pad * 2);
+    this.camera.aspect = sw / sh;
+    this.camera.setViewOffset(sw, sh, -(sr.x + pad), -(sr.y + pad), w, h);
     this.camScale = Math.max(1, 0.92 / this.camera.aspect);
     this.resetCamera();
     this.camera.updateProjectionMatrix();
