@@ -5,6 +5,7 @@ import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
 import { Renderer3D } from './render3d.js';
 import { loadSave, storeSave, Platform } from './session.js';
+import { initGraphicsPanel, migrateGraphics } from './gfx-ui.js';
 
 const R = globalThis.SummitRules;
 const C = globalThis.SummitContent;
@@ -52,6 +53,7 @@ function startRound(cfg) {
   kbFocus = null;
   if (renderer) {
     renderer.settings = save.settings;
+    renderer.setMenuMode(false);
     renderer.buildEnv(theme, cfg.seed);
     renderer.buildBoard(game.state, theme);
     renderer.resize();
@@ -289,6 +291,7 @@ function syncAll() {
 
 function quitToModes() {
   game = null;
+  if (renderer) renderer.setMenuMode(true);
   ui.setPlaying(false);
   flow = 'modes';
   ui.show('scr-modes');
@@ -297,6 +300,7 @@ function quitToModes() {
 
 function goTitle() {
   game = null;
+  if (renderer) renderer.setMenuMode(true);
   ui.setPlaying(false);
   flow = 'title';
   ui.el['resume-line'].hidden = !save.snapshot;
@@ -500,14 +504,16 @@ function bind() {
 
 function bindSettings() {
   const s = save.settings;
+  let lastCvd = s.cvd;
   const upd = () => {
     persistSave();
     ui.applySettingsToDom(s);
     audio.applyVolumes();
     if (renderer) {
-      const rebuild = renderer.settings.tier !== s.tier;
+      const rebuild = lastCvd !== s.cvd;
+      lastCvd = s.cvd;
       renderer.settings = s;
-      if (rebuild && game) { renderer.buildEnv(renderer.theme, game.state.seed); renderer.buildBoard(game.state, renderer.theme); }
+      if (rebuild && game) { renderer.buildBoard(game.state, renderer.theme); renderer.syncState(game.state, game.selection); }
       renderer.resize();
     }
   };
@@ -518,7 +524,7 @@ function bindSettings() {
   chk('opt-captions', 'captions'); chk('opt-motion', 'reducedMotion');
   chk('opt-hc', 'highContrast'); chk('opt-lg', 'largeText');
   chk('opt-left', 'leftHanded'); chk('opt-dom', 'domBoard');
-  sel('opt-tier', 'tier'); sel('opt-cvd', 'cvd');
+  sel('opt-cvd', 'cvd');   // Quality (#opt-tier) is wired by the Graphics panel
 }
 
 function pauseGame(silent) {
@@ -646,8 +652,10 @@ async function boot() {
   bind();
   ui.buildBoard(R);
   // 3D or fallback
+  migrateGraphics(save.settings);
   renderer = new Renderer3D(ui.el.gl, save.settings);
   if (renderer.ok) {
+    renderer.setMenuMode(true);
     renderer.buildEnv(themeFor('dusk'), 1);
     renderer.resize();
   } else {
@@ -656,6 +664,7 @@ async function boot() {
     ui.el['board-dom'].classList.add('visible');
     ui.toast('3D unavailable — using the accessible 2D board. Your progress is preserved.', 6000);
   }
+  initGraphicsPanel({ settings: save.settings, renderer, persist: persistSave });
   if (api.devApi) ui.toast('Connected to ranking server.');
   goTitle();
   flow = 'title';

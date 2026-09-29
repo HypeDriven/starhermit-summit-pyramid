@@ -26,7 +26,7 @@ export function defaultSave() {
     version: SAVE_VERSION,
     settings: {
       music: 60, fx: 80, amb: 50, captions: false,
-      tier: 'medium', reducedMotion: false,
+      gfx: { preset: 'auto' }, reducedMotion: false,
       highContrast: false, largeText: false, cvd: 'default',
       leftHanded: false, domBoard: false, tutorialDone: false
     },

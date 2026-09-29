@@ -182,7 +182,6 @@ export class UI {
     document.documentElement.classList.toggle('lg-text', s.largeText);
     $('vol-music').value = s.music; $('vol-fx').value = s.fx; $('vol-amb').value = s.amb;
     $('opt-captions').checked = s.captions;
-    $('opt-tier').value = s.tier;
     $('opt-motion').checked = s.reducedMotion;
     $('opt-hc').checked = s.highContrast;
     $('opt-lg').checked = s.largeText;

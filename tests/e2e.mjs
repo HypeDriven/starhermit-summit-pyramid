@@ -212,6 +212,63 @@ async function startPractice(page, seed, touch) {
   }, seed, { timeout: 12000 });
 }
 
+// ---------- Graphics settings (real visible controls) ----------
+const bodyPreset = (page) => page.evaluate(() => document.body.dataset.gfxPreset);
+const waitPreset = (page, p) => page.waitForFunction((v) => document.body.dataset.gfxPreset === v &&
+  document.getElementById('gl').dataset.gfxPreset === v, p, { timeout: 8000 });
+
+async function graphicsChecks(page, name, ok) {
+  await page.click('#btn-title-settings');
+  await page.waitForSelector('#scr-settings:not([hidden])');
+  // headless software GPU → Auto resolves to Low
+  if ((await page.inputValue('#opt-tier')) !== 'auto') throw new Error('default quality should be Auto');
+  if ((await bodyPreset(page)) !== 'low') throw new Error('Auto on a software GPU should resolve to Low, got ' + (await bodyPreset(page)));
+  const autoText = await page.locator('#opt-tier option[value="auto"]').textContent();
+  if (!/Low/.test(autoText)) throw new Error('Auto option should name the detected tier: ' + autoText);
+  await page.locator('#opt-tier').scrollIntoViewIfNeeded();
+  await page.selectOption('#opt-tier', 'low');
+  await waitPreset(page, 'low');
+  await page.selectOption('#opt-tier', 'ultra');
+  await waitPreset(page, 'ultra');
+  await page.waitForTimeout(800);            // let the Ultra post chain render a few frames
+  await page.selectOption('#opt-tier', 'high');
+  await waitPreset(page, 'high');
+  const shadowFrom = await page.locator('#gfx-shadows option[value="preset"]').textContent();
+  if (!/Medium/.test(shadowFrom)) throw new Error('shadows "From preset" label wrong: ' + shadowFrom);
+  if (!/bloom/.test(await page.textContent('#gfx-summary'))) throw new Error('High summary should list bloom');
+  await page.locator('#gfx-bloom').scrollIntoViewIfNeeded();
+  await page.selectOption('#gfx-bloom', 'off');
+  await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent) &&
+    / px/.test(document.getElementById('gfx-summary').textContent), null, { timeout: 5000 });
+  // everything in the Graphics section is reachable inside the (scrolling) panel
+  const vp = page.viewportSize();
+  for (const id of ['opt-tier', 'gfx-scale', 'gfx-scale-val', 'gfx-shadows', 'gfx-detail', 'gfx-adaptive', 'gfx-fps', 'gfx-summary']) {
+    const loc = page.locator('#' + id);
+    await loc.scrollIntoViewIfNeeded();
+    const bb = await loc.boundingBox();
+    if (!bb || bb.x < 0 || bb.x + bb.width > vp.width + 1 || bb.y < 0 || bb.y + bb.height > vp.height + 1)
+      throw new Error(`#${id} is cut off: ${JSON.stringify(bb)}`);
+  }
+  await page.screenshot({ path: SHOT('graphics', name) });
+  ok('Graphics: Auto=Low detected, Low → Ultra → High applied, bloom override applied, controls fit');
+
+  // survives reload
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#scr-title:not([hidden])', { timeout: 15000 });
+  await waitPreset(page, 'high');
+  await page.click('#btn-title-settings');
+  await page.waitForSelector('#scr-settings:not([hidden])');
+  if ((await page.inputValue('#opt-tier')) !== 'high') throw new Error('preset not persisted');
+  if ((await page.inputValue('#gfx-bloom')) !== 'off') throw new Error('bloom override not persisted');
+  // choosing a preset clears overrides; back to Low keeps the rest of the run cheap
+  await page.selectOption('#opt-tier', 'low');
+  await waitPreset(page, 'low');
+  if ((await page.inputValue('#gfx-bloom')) !== 'preset') throw new Error('preset choice should clear overrides');
+  await page.click('#scr-settings button[data-back="auto"]');
+  await page.waitForSelector('#scr-title:not([hidden])');
+  ok('Graphics settings persist across reload; choosing a preset clears overrides');
+}
+
 // ---------- one full pass ----------
 async function runPass(browser, name, ctxOpts, { full }) {
   const errors = [];
@@ -219,10 +276,10 @@ async function runPass(browser, name, ctxOpts, { full }) {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
     if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
-    errors.push(`console: ${m.text()}`);
+    errors.push(`console ${m.type()}: ${m.text()}`);
   });
   page.on('response', (r) => {
     if (r.status() >= 400 && !/\/api\/|\/favicon/.test(r.url())) {
@@ -239,6 +296,8 @@ async function runPass(browser, name, ctxOpts, { full }) {
     await page.waitForSelector('#scr-title:not([hidden])', { timeout: 15000 });
     await page.screenshot({ path: SHOT('title', name) });
     ok('title screen visible');
+
+    await graphicsChecks(page, name, ok);
 
     // Settings: enable the accessible 2D board (real visible controls) + HC
     await page.click('#btn-title-settings');
@@ -378,7 +437,7 @@ let browser = null;
 try {
   browser = await chromium.launch({
     executablePath: '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--mute-audio'],
+    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'],
   });
   await runPass(browser, 'desktop', { viewport: { width: 1280, height: 800 } }, { full: true });
   await runPass(browser, 'mobile',
