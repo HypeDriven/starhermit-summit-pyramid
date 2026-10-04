@@ -5,7 +5,7 @@
   "description": "Summit Pyramid - card pairing puzzle game (browser)",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
-    "test": "node test.js && node --test tests/gfx.test.mjs",
+    "test": "node test.js && node --test tests/gfx.test.mjs tests/platform.test.mjs",
     "test:e2e": "node tests/e2e.mjs"
   },
   "dependencies": {

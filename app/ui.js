@@ -16,7 +16,7 @@ export class UI {
       'result-headline', 'result-reason', 'result-table', 'result-achievements', 'result-submit',
       'pause-seed', 'pause-moves', 'board-source', 'board-global', 'board-daily',
       'tut-title', 'tut-text', 'tut-hint', 'resume-line', 'practice-seed',
-      'player-name', 'sync-status', 'title-status'
+      'player-name', 'sync-status', 'title-status', 'btn-signin', 'btn-invite'
     ]) this.el[id] = $(id);
     this.screens = ['scr-title', 'scr-modes', 'scr-journey', 'scr-practice', 'scr-challenge',
       'scr-pause', 'scr-results', 'scr-help', 'scr-settings', 'scr-board', 'scr-tut'];

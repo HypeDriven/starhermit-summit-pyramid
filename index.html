@@ -3,7 +3,7 @@
 <head>
   <link rel="icon" href="favicon.png" type="image/png">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Summit Pyramid</title>
 <style>
 :root{
@@ -105,6 +105,7 @@ select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid 
 }
 </style>
 <script src="browser-guard.js"></script>
+<script src="starhermit-sdk.js"></script>
 </head>
 <body>
 <div id="live" aria-live="polite"></div>
@@ -146,6 +147,8 @@ select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid 
       <button id="btn-title-help">How to play</button>
       <button id="btn-title-settings">Settings</button>
       <button id="btn-title-board">Leaderboard</button>
+      <button id="btn-signin" hidden>Sign in with StarHermit</button>
+      <button id="btn-invite" hidden>Invite a friend</button>
     </div>
     <p class="muted" id="resume-line" hidden><button id="btn-resume">Resume last game</button></p>
   </div>
@@ -230,7 +233,7 @@ select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid 
       <div><h3>Pair to 14</h3><p>Cards are worth their rank (A=1 … K=13). Select two <b>uncovered</b> cards totaling 14 to remove them. A card is uncovered when both cards below it are gone (the bottom row is always uncovered).</p></div>
       <div><h3>Stock and waste</h3><p>Press <b>D</b> or Draw to flip a stock card to the waste. The top waste card can pair with any uncovered pyramid card.</p></div>
       <div><h3>Recycle</h3><p>When the stock is empty, press <b>R</b> to flip the waste back into a new stock — a limited number of times.</p></div>
-      <div><h3>Keyboard</h3><p>Arrows move between legal cards · Enter select · Esc cancel/pause · U undo · H hint · D draw · R recycle · C reset camera.</p></div>
+      <div><h3>Keyboard</h3><p id="help-keys">Arrows move between legal cards · Enter select · Esc cancel/pause · U undo · H hint · D draw · R recycle · C reset camera.</p></div>
       <div><h3>Scoring</h3><p>+100 per pair · +1000 clearing the pyramid · +10 per unused stock card · +100 per unused recycle · −25 per invalid action.</p></div>
     </div>
     <div class="row"><button id="btn-help-tutorial">Replay tutorial</button><button class="back" data-back="auto">Back</button></div>

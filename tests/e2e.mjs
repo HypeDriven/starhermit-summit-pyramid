@@ -18,12 +18,9 @@
  * board buttons (#board-dom .card-btn) or tray buttons. The engine is never
  * called in the page to make a move and no game source is modified.
  *
- * Serving: the repo ships `server.js` = the StarHermit authoritative host.
- * The game is fully playable offline — when `/api/*` is absent the api adapter
- * degrades to offline mode (Api.detect → available=false, local results). So,
- * following the blockstead/picture-logic conventions, this test embeds a
- * minimal node:http static server on an ephemeral port and answers /api/*
- * with 404 so the client takes its documented offline path with no noise.
+ * Serving: this test embeds a minimal node:http static server on an ephemeral
+ * port. Standalone (no launch token) the game must make zero same-origin
+ * /api or /ws requests; each pass asserts that.
  *
  * NOTE (resolved defect): TARGET=21 made the win unreachable — with card
  * values A=1..K=13, only ranks 8..K could ever sum to 21, so ranks 1-7 could
@@ -81,7 +78,6 @@ function startServer() {
     if (p === '/') p = '/index.html';
     const file = path.normalize(path.join(ROOT, p));
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-      // includes /api/* → game takes its documented offline path
       res.writeHead(404).end('not found');
       return;
     }
@@ -278,11 +274,17 @@ async function runPass(browser, name, ctxOpts, { full }) {
   page.on('console', (m) => {
     if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const url = m.location()?.url || '';
-    if (/Failed to load resource/.test(m.text()) && /\/api\/|\/favicon/.test(url)) return;
+    if (/Failed to load resource/.test(m.text()) && /\/favicon/.test(url)) return;
     errors.push(`console ${m.type()}: ${m.text()}`);
   });
+  // Standalone (no launch token) must never call the game's own server routes.
+  const ownServerCalls = [];
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (u.host === `127.0.0.1:${port}` && /^\/(api|ws)(\/|$)/.test(u.pathname)) ownServerCalls.push(u.pathname);
+  });
   page.on('response', (r) => {
-    if (r.status() >= 400 && !/\/api\/|\/favicon/.test(r.url())) {
+    if (r.status() >= 400 && !/\/favicon/.test(r.url())) {
       errors.push(`http ${r.status()}: ${r.url()}`);
     }
   });
@@ -426,6 +428,8 @@ async function runPass(browser, name, ctxOpts, { full }) {
 
   if (errors.length) throw new Error(`${name} pass had page errors:\n  ${errors.join('\n  ')}`);
   ok('no page errors');
+  if (ownServerCalls.length) throw new Error(`${name} pass made standalone own-server requests: ${ownServerCalls.join(', ')}`);
+  ok('standalone load made zero same-origin /api or /ws requests');
 }
 
 // ---------- main ----------

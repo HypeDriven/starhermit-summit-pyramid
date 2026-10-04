@@ -4,7 +4,8 @@
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
 import { Renderer3D } from './render3d.js';
-import { loadSave, storeSave, Platform } from './session.js';
+import { loadSave, storeSave, Platform, DEFAULT_BINDINGS } from './session.js';
+import { shText } from './sh-i18n.js';
 import { initGraphicsPanel, migrateGraphics } from './gfx-ui.js';
 
 const R = globalThis.SummitRules;
@@ -19,6 +20,30 @@ const api = new Platform();
 function persistSave() {
   storeSave(save);
   api.queueCloudSave(save);
+  api.pushSettings(save.settings);
+}
+
+/* Effective keyboard bindings (action -> KeyboardEvent.code[]). */
+let bindings = Object.fromEntries(Object.entries(DEFAULT_BINDINGS).map(([k, v]) => [k, v.slice()]));
+const isKey = (action, e) => (bindings[action] || []).includes(e.code);
+function keyLabel(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  return { Escape: 'Esc', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' }[code] || code;
+}
+function renderKeyHelp() {
+  const k = a => (bindings[a] || []).map(keyLabel).join('/') || '—';
+  const el = document.getElementById('help-keys');
+  if (el) el.textContent = k('prev') + ' ' + k('next') + ' move between legal cards · ' + k('confirm') + ' select · ' +
+    k('cancel') + ' cancel/pause · ' + k('undo') + ' undo · ' + k('hint') + ' hint · ' + k('draw') + ' draw · ' +
+    k('recycle') + ' recycle · ' + k('camera') + ' reset camera.';
+}
+
+async function copyInvite() {
+  const url = api.inviteLink();
+  if (!url) return;
+  try { await navigator.clipboard.writeText(url); ui.toast(shText('copied')); }
+  catch (e) { ui.toast(shText('copyFail', { url }), 6000); }
 }
 
 function esc(s) {
@@ -46,8 +71,7 @@ function startRound(cfg) {
     selection: [],
     commands: [],
     used: new Set(),
-    tutorialStep: cfg.tutorial ? 0 : null,
-    startedAt: Date.now()
+    tutorialStep: cfg.tutorial ? 0 : null
   };
   const theme = themeFor(cfg.themeId || C.THEMES[(cfg.seed % C.THEMES.length)]?.id || 'dusk');
   kbFocus = null;
@@ -120,14 +144,7 @@ function endRound(terminal) {
     (won ? audio.win() : audio.lose());
     ui.live(terminal.won ? 'You win. Score ' + score.total : 'Round over. Score ' + score.total);
   };
-  if (ranked && api.devApi) {
-    api.submitScore({
-      seed: game.state.seed, rulesetVersion: R.RULESET_VERSION, options: game.state.options,
-      mode: game.cfg.mode, dailyId: game.cfg.mode === 'daily' ? C.dailyId(new Date(api.now())) : undefined,
-      commands: game.commands, claimedScore: score.total, durationMs: Date.now() - game.startedAt
-    }).then(r => finish('Score validated and submitted (rank ' + (r.rank || '—') + ').'))
-      .catch(e => finish('Submission rejected: ' + e.message));
-  } else if (ranked && api.hosted) {
+  if (ranked && api.hosted) {
     finish('Ranked round recorded in your cloud save — the StarHermit board is a read-only view of platform-validated play.');
   } else if (ranked) finish('Ranked game recorded locally (no server connection).');
   else finish(submitNote);
@@ -139,7 +156,6 @@ function grant(id, unlocked) {
   if (!meta) return;
   save.achievements[id] = Date.now();
   unlocked.push(meta);
-  api.submitAchievement(id).catch(() => {});
 }
 
 function persistSnapshot() {
@@ -353,6 +369,10 @@ function bind() {
   on('btn-title-help', () => { ui.returnTo = 'scr-title'; ui.show('scr-help'); });
   on('btn-title-settings', () => { ui.returnTo = 'scr-title'; ui.show('scr-settings'); });
   on('btn-title-board', showLeaderboards);
+  ui.el['btn-signin'].textContent = shText('signIn');
+  ui.el['btn-invite'].textContent = shText('invite');
+  on('btn-signin', () => api.signIn());
+  on('btn-invite', copyInvite);
 
   on('mode-learn', () => startRound({ mode: 'learn', label: 'Learn', seed: 101, tutorial: true, themeId: 'dusk' }));
   on('mode-journey', () => { ui.renderJourney(C, save.journey); ui.show('scr-journey'); });
@@ -547,8 +567,7 @@ function resumeGame() {
    U undo, H hint, D draw, R recycle, C camera reset */
 function onKey(e) {
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-  const k = e.key;
-  if (k === 'Escape') {
+  if (isKey('cancel', e)) {
     if (flow === 'active' || flow === 'tutorial') {
       if (game && game.selection.length) { game.selection = []; syncAll(); audio.deselect(); }
       else pauseGame();
@@ -556,23 +575,23 @@ function onKey(e) {
     return;
   }
   if (!game || (flow !== 'active' && flow !== 'tutorial')) return;
-  if (k === 'u' || k === 'U') { doCommand({ type: 'undo' }); return; }
-  if (k === 'h' || k === 'H') { doHint(); return; }
-  if (k === 'd' || k === 'D') { doCommand({ type: 'draw' }); return; }
-  if (k === 'r' || k === 'R') { doCommand({ type: 'recycle' }); return; }
-  if (k === 'c' || k === 'C') { if (renderer) renderer.resetCamera(); return; }
-  if (k.startsWith('Arrow')) {
+  if (isKey('undo', e)) { doCommand({ type: 'undo' }); return; }
+  if (isKey('hint', e)) { doHint(); return; }
+  if (isKey('draw', e)) { doCommand({ type: 'draw' }); return; }
+  if (isKey('recycle', e)) { doCommand({ type: 'recycle' }); return; }
+  if (isKey('camera', e)) { if (renderer) renderer.resetCamera(); return; }
+  if (isKey('prev', e) || isKey('next', e)) {
     e.preventDefault();
     const targets = navTargets();
     if (!targets.length) return;
     const i = targets.findIndex(t => t.zone === (kbFocus && kbFocus.zone) && t.index === (kbFocus && kbFocus.index));
-    const d = (k === 'ArrowRight' || k === 'ArrowDown') ? 1 : -1;
+    const d = isKey('next', e) ? 1 : -1;
     kbFocus = targets[(i + d + targets.length) % targets.length];
     ui.live('Focused ' + describeRef(kbFocus) + '. Enter to select.');
     audio.select();
     return;
   }
-  if (k === 'Enter' && kbFocus) { tapTarget(kbFocus); kbFocus = null; }
+  if (isKey('confirm', e) && kbFocus) { tapTarget(kbFocus); kbFocus = null; }
 }
 
 function navTargets() {
@@ -605,18 +624,7 @@ async function showLeaderboards() {
     } catch (e) { renderLocal('Personal bests (platform board unavailable).'); }
     return;
   }
-  if (!api.devApi) { renderLocal('Personal bests (casual — no server connection).'); return; }
-  try {
-    const boards = await api.devBoards();
-    if (!boards) { renderLocal('Personal bests (server unreachable).'); return; }
-    ui.el['board-source'].textContent = 'Validated rankings (dev server).';
-    ui.el['board-global'].innerHTML = (boards.global || []).map((e, i) =>
-      '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name || 'Player') + '</td><td>seed ' + e.seed + '</td><td>' + esc(e.mode) + '</td><td style="text-align:right">' + e.score + '</td></tr>'
-    ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
-    ui.el['board-daily'].innerHTML = (boards.daily || []).map((e, i) =>
-      '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name || 'Player') + '</td><td>' + esc(e.dailyId) + '</td><td style="text-align:right">' + e.score + '</td></tr>'
-    ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
-  } catch (e) { renderLocal('Personal bests (error).'); }
+  renderLocal('Personal bests (local).');
 }
 
 /* ---------- boot ---------- */
@@ -627,6 +635,8 @@ function refreshIdentity() {
     ? { synced: 'cloud synced', saving: 'saving…', error: 'sync error — retrying', offline: 'offline' }[api.syncState] || 'cloud synced'
     : '';
   ui.el['title-status'].textContent = api.statusLine();
+  ui.el['btn-signin'].hidden = !api.canSignIn();
+  ui.el['btn-invite'].hidden = !api.inviteLink();
 }
 
 function adoptRemote(remote) {
@@ -642,11 +652,17 @@ function adoptRemote(remote) {
 async function boot() {
   await api.init();
   api.onSyncChange = refreshIdentity;
+  api.onAuthChange = a => { if (!a.signedIn) ui.toast(shText('signedOut'), 4000); };
   if (api.hosted) {
     const remote = await api.pullCloudSave();
     if (remote) adoptRemote(remote);
     else api.queueCloudSave(save);   // no remote doc yet → push the local one
+    // Platform-stored preferences win over the local defaults.
+    const prefs = await api.loadPlatformSettings(save.settings);
+    if (prefs && Object.keys(prefs).length) { Object.assign(save.settings, prefs); storeSave(save); }
   }
+  bindings = await api.loadBindings();
+  renderKeyHelp();
   refreshIdentity();
   ui.applySettingsToDom(save.settings);
   bind();
@@ -665,7 +681,6 @@ async function boot() {
     ui.toast('3D unavailable — using the accessible 2D board. Your progress is preserved.', 6000);
   }
   initGraphicsPanel({ settings: save.settings, renderer, persist: persistSave });
-  if (api.devApi) ui.toast('Connected to ranking server.');
   goTitle();
   flow = 'title';
 }
