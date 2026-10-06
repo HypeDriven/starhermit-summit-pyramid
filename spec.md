@@ -77,6 +77,7 @@ The Three.js canvas fills the game region but is never the only UI. Menus, text,
 - **Portrait mobile:** top safe-area status bar, square or perspective-fit playfield, bottom thumb-zone action tray, and sheet-based secondary panels. Never place critical controls under browser chrome or display cutouts.
 - **Landscape mobile:** reserve a narrow status rail; preserve at least 44×44 CSS-pixel targets and 8-pixel separation.
 - React to resize, orientation, device-pixel-ratio, safe-area insets, virtual keyboard, and visibility changes without losing input or restarting the round.
+- **Large screens (above 1600×1000):** every DOM UI layer (top bar, action tray, screens/panels, lesson card, toasts, captions, 2D board) zooms by `--ui-scale` from `ui-scale.js` (`min(w/1600, h/1000)`, capped at 2.5); the 3D canvas stays unzoomed and fills the space between the bars, so the layout matches the ~1600×1000 one magnified.
 
 ### Screens and overlays
 

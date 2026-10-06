@@ -103,7 +103,11 @@ select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid 
   .row select{flex:1 1 10em;max-width:100%}
   .range-wrap{min-width:0;flex:1 1 10em}
 }
+/* Large screens: every DOM UI layer zooms by --ui-scale (ui-scale.js, 1 up to
+   1600x1000); the 3D canvas stays unzoomed and fills the space they leave. */
+header#topbar,#tray,.screen,#toast,#captions,#board-dom,#fps-meter{zoom:var(--ui-scale,1)}
 </style>
+<script src="ui-scale.js"></script>
 <script src="browser-guard.js"></script>
 <script src="starhermit-sdk.js"></script>
 </head>
