@@ -31,11 +31,20 @@ export class UI {
       for (const s of this.screens) this.el[s].hidden = true;
       return;
     }
+    const opening = !!name && this.el[name].hidden;
     for (const s of this.screens) this.el[s].hidden = s !== name;
     if (name && !opts.keepFocus) {
       this.lastFocus = document.activeElement;
-      const first = this.el[name].querySelector('button, [tabindex], input, select');
-      if (first) first.focus();
+      const scr = this.el[name];
+      const first = scr.querySelector('button, [tabindex], input, select');
+      if (first) first.focus({ preventScroll: true });
+    }
+    if (opening) {
+      // open at the top: hidden screens keep their scroll, and focusing a
+      // button can scroll a tall panel past its heading
+      const scr = this.el[name];
+      scr.scrollTop = 0;
+      for (const p of scr.querySelectorAll('.panel')) p.scrollTop = 0;
     }
   }
 
