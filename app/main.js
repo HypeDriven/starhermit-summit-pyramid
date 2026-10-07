@@ -145,9 +145,25 @@ function endRound(terminal) {
     ui.live(terminal.won ? 'You win. Score ' + score.total : 'Round over. Score ' + score.total);
   };
   if (ranked && api.hosted) {
-    finish('Ranked round recorded in your cloud save — the StarHermit board is a read-only view of platform-validated play.');
+    finish('Ranked round recorded in your cloud save and posted to the StarHermit leaderboard.');
   } else if (ranked) finish('Ranked game recorded locally (no server connection).');
   else finish(submitNote);
+  postToLeaderboard(ranked ? Math.max(0, score.total) : null);
+}
+
+// Signed in only: post a ranked round to the `high-score` board and show the
+// player's rank on the results screen.
+function postToLeaderboard(total) {
+  const line = document.getElementById('result-lb');
+  if (total == null || !api.hosted) { line.hidden = true; return; }
+  line.hidden = false;
+  line.textContent = shText('lbPosting');
+  const round = game;
+  api.submitScore(total).then(r => {
+    if (game !== round) return;
+    line.textContent = !r.posted ? shText('lbNotPosted')
+      : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted');
+  });
 }
 
 function grant(id, unlocked) {
@@ -612,11 +628,10 @@ async function showLeaderboards() {
     ui.el['board-daily'].innerHTML = '<tr><td class="muted">—</td></tr>';
   };
   if (api.hosted) {
-    // Platform board is read-only (clients can never submit scores).
     try {
       const entries = await api.boardEntries(false);
       if (!entries) { renderLocal('Personal bests (this game has no platform leaderboard).'); return; }
-      ui.el['board-source'].textContent = 'StarHermit leaderboard — read-only. Personal bests are in your cloud save.';
+      ui.el['board-source'].textContent = 'StarHermit high-score board (ranked rounds). Personal bests are in your cloud save.';
       ui.el['board-global'].innerHTML = entries.map((e, i) =>
         '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + (e.me ? ' (you)' : '') + '</td><td style="text-align:right">' + e.score + '</td></tr>'
       ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';

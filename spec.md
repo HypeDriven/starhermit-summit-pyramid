@@ -209,16 +209,16 @@ No module may mutate rules state except through a validated command. Rendering c
 
 ### Achievements and leaderboards
 - Declare a small static achievement set: first completion, mechanic mastery, a sustained streak, a difficult content milestone, and an accessibility-neutral long-term goal. Keys are stable, lowercase identifiers; unlocks are idempotent.
-- Provide global and friends-filtered boards for the primary metric plus a fair daily/weekly board. Hosted boards are read-only (`StarHermit.leaderboard()`, nicknames via `profile()`); clients never submit scores to the platform, and personal bests live in the local/cloud save. `server.js` keeps a replay-validating submit route (ruleset, seed, commands, duration) for tooling/tests only; the client does not call it.
+- Provide global and friends-filtered boards for the primary metric plus a fair daily/weekly board. Hosted, one platform board, `high-score` (integer, higher is better, 0–100,000): every finished ranked round (Daily, Score chase) posts its total (floored at 0) through `StarHermit.submitScores` (a practice session whose `score-script.js` posts it), and the results screen shows "Leaderboard rank: #N" (or posted / not posted), localized in the nine locales (`app/sh-i18n.js`); the board screen reads it (`StarHermit.leaderboard('high-score')`, nicknames via `profile()`). Standalone nothing is posted; personal bests live in the local/cloud save. `server.js` keeps a replay-validating submit route (ruleset, seed, commands, duration) for tooling/tests only; the client does not call it.
 - For globally competitive boards, validate score claims through a lightweight authoritative script using replayable input logs and deterministic seeds. If validation is unavailable, label the board casual and apply plausibility/rate checks.
 
 ### Sessions and transport
-- The initial game is solo. Ranked results and achievements are recorded locally; hosted, achievements stay local as part of the cloud-saved document and platform leaderboards are read-only. Ordinary practice runs locally and offline after initial load.
+- The initial game is solo. Ranked results and achievements are recorded locally; hosted, achievements stay local as part of the cloud-saved document and ranked totals also post to the `high-score` board. Ordinary practice runs locally and offline after initial load.
 - A daily session records content version, seed, settings affecting difficulty, an ordered input log, score components, and final checksum. Reconnect from the durable session snapshot rather than trusting cached client state.
 - Realtime rooms, peer relay, matchmaking, backfill, and voice are intentionally not used because they add no value to this ruleset.
 
 ### Publishing and operations
-- Keep the authoritative script inside the distribution and declare it with `server=server.js`. Choose a digest-pinned container only if profiling proves the sandbox unsuitable; no initial design here requires one.
+- Keep the authoritative script inside the distribution and declare it with `server=` (today `server=score-script.js`, canonical copy in the games repo's `tools/score-script.js`; it range-checks and posts scores, and `server.js` stays the local dev server). Choose a digest-pinned container only if profiling proves the sandbox unsuitable; no initial design here requires one.
 - Define control defaults, achievement metadata, and versioned settings before release. Publish immutable build assets, verify the launch path, maintain migration tests for saves, and expose no secret configuration to the client.
 - Capture anonymous funnel events only for start, tutorial step, round end, retry, settings change, and error category. Avoid raw text, precise personal data, and cross-title tracking.
 
