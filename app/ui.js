@@ -1,5 +1,7 @@
 /* Summit Pyramid — DOM shell: screens, HUD, settings, accessible board mirror. */
 
+import { T } from './i18n.js';
+
 const $ = id => document.getElementById(id);
 
 export class UI {
@@ -65,7 +67,7 @@ export class UI {
   caption(msg) {
     const c = this.el.captions;
     c.style.display = 'block';
-    c.textContent = '♪ ' + msg;
+    c.textContent = '♪ ' + T(msg);
     clearTimeout(this._capT);
     this._capT = setTimeout(() => { c.style.display = 'none'; }, 1600);
   }
@@ -118,59 +120,86 @@ export class UI {
     board.appendChild(pileRow);
   }
 
-  syncBoard(R, state, selection, legal) {
+  syncBoard(R, state, selection, legal, names) {
+    const short = names ? names.short : R.cardName, spoken = names ? names.spoken : R.cardName;
     for (let i = 0; i < 28; i++) {
       const b = this.cardButtons[i];
       const card = state.pyramid[i];
       if (card == null) { b.style.display = 'none'; continue; }
       b.style.display = '';
       const exposed = R.isExposed(state.pyramid, i);
-      b.textContent = R.cardName(card);
+      b.textContent = short(card);
       b.classList.toggle('red', card >= 13 && card < 39);
       b.classList.toggle('covered', !exposed);
       b.classList.toggle('sel', selection.some(s => s.zone === 'pyramid' && s.index === i));
       b.disabled = !exposed;
       b.setAttribute('aria-label',
-        R.cardName(card) + (exposed ? ', exposed' : ', covered') +
-        (selection.some(s => s.zone === 'pyramid' && s.index === i) ? ', selected' : ''));
+        spoken(card) + (exposed ? T(', exposed') : T(', covered')) +
+        (selection.some(s => s.zone === 'pyramid' && s.index === i) ? T(', selected') : ''));
       const isLegal = exposed && legal.some(a => a.type === 'remove' &&
         a.cards.some(c => c.zone === 'pyramid' && c.index === i));
       b.classList.toggle('legal', isLegal);
     }
     const w = state.waste.length ? state.waste[state.waste.length - 1] : null;
-    this.wasteButton.textContent = w == null ? '—' : R.cardName(w);
+    this.wasteButton.textContent = w == null ? '—' : short(w);
     this.wasteButton.disabled = w == null;
     this.wasteButton.classList.toggle('red', w != null && w >= 13 && w < 39);
     this.wasteButton.classList.toggle('sel', selection.some(s => s.zone === 'waste'));
-    this.wasteButton.setAttribute('aria-label', 'Waste top: ' + (w == null ? 'empty' : R.cardName(w)));
+    this.wasteButton.setAttribute('aria-label', T('Waste top: {card}', { card: w == null ? T('empty') : spoken(w) }));
   }
 
-  showResults(terminal, score, modeLabel, achievements, submitNote) {
-    this.el['result-headline'].textContent = terminal.won ? 'Pyramid cleared!' : 'Round over';
-    this.el['result-headline'].className = terminal.won ? 'good' : 'bad';
-    this.el['result-reason'].textContent =
-      (terminal.reason === 'pyramid-cleared' ? 'Every card reached the summit.' :
-       terminal.reason === 'move-limit' ? 'Move limit reached.' : 'No legal moves remain.') +
-      ' · ' + modeLabel;
-    const rows = [
-      ['Pairs removed (×100)', score.pairs],
-      ['Pyramid clear bonus', score.clearBonus],
-      ['Unused stock bonus', score.stockBonus],
-      ['Unused recycle bonus', score.recycleBonus],
-      ['Invalid-action penalty', score.invalidPenalty],
-      ['Total', score.total]
-    ];
-    this.el['result-table'].innerHTML = rows.map(([k, v]) =>
-      '<tr><td>' + k + '</td><td style="text-align:right">' + v + '</td></tr>').join('');
-    this.el['result-achievements'].innerHTML = achievements.length
-      ? 'Achievements unlocked: ' + achievements.map(a => '<b class="good">' + a.name + '</b>').join(', ') : '';
-    this.el['result-submit'].textContent = submitNote || '';
+  /* cfg: the round config (labelled through this.label); submitNote: a thunk. */
+  showResults(terminal, score, cfg, achievements, submitNote) {
+    this._results = { terminal, score, cfg, achievements, submitNote };
+    this.relabelResults();
     this.show('scr-results');
   }
 
-  renderJourney(content, journey) {
+  /** Re-render the results screen text in the current language. */
+  relabelResults() {
+    const r = this._results;
+    if (!r) return;
+    const { terminal, score, cfg, achievements, submitNote } = r;
+    this.el['result-headline'].textContent = terminal.won ? T('Pyramid cleared!') : T('Round over');
+    this.el['result-headline'].className = terminal.won ? 'good' : 'bad';
+    this.el['result-reason'].textContent =
+      (terminal.reason === 'pyramid-cleared' ? T('Every card reached the summit.') :
+       terminal.reason === 'move-limit' ? T('Move limit reached.') : T('No legal moves remain.')) +
+      ' · ' + (this.label ? this.label(cfg) : cfg.label);
+    const rows = [
+      [T('Pairs removed (×100)'), score.pairs],
+      [T('Pyramid clear bonus'), score.clearBonus],
+      [T('Unused stock bonus'), score.stockBonus],
+      [T('Unused recycle bonus'), score.recycleBonus],
+      [T('Invalid-action penalty'), score.invalidPenalty],
+      [T('Total'), score.total]
+    ];
+    this.el['result-table'].replaceChildren(...rows.map(([k, v]) => {
+      const tr = document.createElement('tr');
+      const a = document.createElement('td'), b = document.createElement('td');
+      a.textContent = k; b.textContent = v; b.style.textAlign = 'right';
+      tr.append(a, b);
+      return tr;
+    }));
+    const ach = this.el['result-achievements'];
+    ach.replaceChildren();
+    if (achievements.length) {
+      ach.append(T('Achievements unlocked:') + ' ');
+      achievements.forEach((a, i) => {
+        if (i) ach.append(', ');
+        const b = document.createElement('b');
+        b.className = 'good';
+        b.textContent = T(a.name);
+        b.title = T(a.description);
+        ach.append(b);
+      });
+    }
+    this.el['result-submit'].textContent = (typeof submitNote === 'function' ? submitNote() : submitNote) || '';
+  }
+
+  renderJourney(content, journey, stageName = s => s.name) {
     this.el['journey-progress'].textContent =
-      Object.keys(journey.completed).length + ' / ' + content.STAGE_COUNT + ' stages complete';
+      T('{done} / {total} stages complete', { done: Object.keys(journey.completed).length, total: content.STAGE_COUNT });
     const grid = this.el['stage-grid'];
     grid.innerHTML = '';
     for (const s of content.STAGES) {
@@ -180,7 +209,7 @@ export class UI {
       b.textContent = (s.mastery ? '★' : '') + n;
       b.className = (locked ? 'locked ' : '') + (journey.completed[s.id] != null ? 'done' : '');
       b.disabled = locked;
-      b.title = s.name + ' — tier ' + s.difficulty + ', par ' + s.par.score;
+      b.title = T('{name} — tier {tier}, par {par}', { name: stageName(s), tier: s.difficulty, par: s.par.score });
       b.dataset.stage = s.id;
       grid.appendChild(b);
     }

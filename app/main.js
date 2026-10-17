@@ -4,9 +4,11 @@
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
 import { Renderer3D } from './render3d.js';
-import { loadSave, storeSave, Platform, DEFAULT_BINDINGS } from './session.js';
+import { loadSave, storeSave, mergeSaves, Platform, DEFAULT_BINDINGS } from './session.js';
 import { shText } from './sh-i18n.js';
 import { initGraphicsPanel, migrateGraphics } from './gfx-ui.js';
+import { T, onLanguage, currentLang } from './i18n.js';
+import { cardShort, cardSpoken, stageName, modeLabel, bestKeyLabel } from './loc.js';
 
 const R = globalThis.SummitRules;
 const C = globalThis.SummitContent;
@@ -33,10 +35,13 @@ function keyLabel(code) {
 }
 function renderKeyHelp() {
   const k = a => (bindings[a] || []).map(keyLabel).join('/') || '—';
-  const el = document.getElementById('help-keys');
-  if (el) el.textContent = k('prev') + ' ' + k('next') + ' move between legal cards · ' + k('confirm') + ' select · ' +
-    k('cancel') + ' cancel/pause · ' + k('undo') + ' undo · ' + k('hint') + ' hint · ' + k('draw') + ' draw · ' +
-    k('recycle') + ' recycle · ' + k('camera') + ' reset camera.';
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  set('help-keys', T('{prev} {next} move between legal cards · {confirm} select · {cancel} cancel/pause · {undo} undo · {hint} hint · {draw} draw · {recycle} recycle · {camera} reset camera.', {
+    prev: k('prev'), next: k('next'), confirm: k('confirm'), cancel: k('cancel'), undo: k('undo'),
+    hint: k('hint'), draw: k('draw'), recycle: k('recycle'), camera: k('camera'),
+  }));
+  set('help-draw', T('Press {key} or Draw to flip a stock card to the waste. The top waste card can pair with any uncovered pyramid card.', { key: k('draw') }));
+  set('help-recycle', T('When the stock is empty, press {key} to flip the waste back into a new stock — a limited number of times.', { key: k('recycle') }));
 }
 
 async function copyInvite() {
@@ -89,22 +94,29 @@ function startRound(cfg) {
   ui.setPlaying(true);
   syncAll();
   audio.ensure(); audio.startAmbience();
-  ui.live(cfg.label + ' started. ' + ui.el.objective.textContent);
+  ui.live(T('{mode} started.', { mode: modeLabel(cfg) }) + ' ' + ui.el.objective.textContent);
   persistSnapshot();
 }
 
 function enterTutorialLesson() {
   const lesson = C.TUTORIAL.lessons[game.tutorialStep];
-  ui.el['tut-title'].textContent = (game.tutorialStep + 1) + '/' + C.TUTORIAL.lessons.length + ' — ' + lesson.title;
-  ui.el['tut-text'].textContent = lesson.text;
   game.lesson = lesson;
+  labelLesson();
   game.state = R.newGame(lesson.seed, { recycles: lesson.recycles == null ? 2 : lesson.recycles });
   if (lesson.drawAll) while (game.state.stock.length) game.state = R.applyCommand(game.state, { type: 'draw' });
   if (renderer) { renderer.buildBoard(game.state, renderer.theme || themeFor('dusk')); renderer.resize(); }
   game.selection = [];
+}
+
+function labelLesson() {
+  const lesson = game && game.lesson;
+  if (!lesson) return;
+  const key = a => (bindings[a] || []).map(keyLabel).join('/') || '—';
+  ui.el['tut-title'].textContent = (game.tutorialStep + 1) + '/' + C.TUTORIAL.lessons.length + ' — ' + T(lesson.title);
+  ui.el['tut-text'].textContent = T(lesson.text);
   ui.el['tut-hint'].textContent = lesson.require.type === 'remove'
-    ? (lesson.require.waste ? 'Pair the waste top card with a pyramid card.' : 'Select two exposed cards totaling 14.')
-    : lesson.require.type === 'draw' ? 'Press Draw (D).' : 'Press Recycle (R).';
+    ? (lesson.require.waste ? T('Pair the waste top card with a pyramid card.') : T('Select two exposed cards totaling 14.'))
+    : lesson.require.type === 'draw' ? T('Press Draw ({key}).', { key: key('draw') }) : T('Press Recycle ({key}).', { key: key('recycle') });
 }
 
 function endRound(terminal) {
@@ -136,20 +148,21 @@ function endRound(terminal) {
   persistSave();
 
   // submit ranked results
-  let submitNote = 'Unranked local game.';
   const ranked = game.cfg.ranked;
   const finish = note => {
     flow = 'results';
-    ui.showResults(terminal, score, game.cfg.label, unlocked, note);
+    ui.showResults(terminal, score, game.cfg, unlocked, note);
     (won ? audio.win() : audio.lose());
-    ui.live(terminal.won ? 'You win. Score ' + score.total : 'Round over. Score ' + score.total);
+    ui.live(terminal.won ? T('You win. Score {n}', { n: score.total }) : T('Round over. Score {n}', { n: score.total }));
   };
   if (ranked && api.hosted) {
-    finish('Ranked round recorded in your cloud save and posted to the StarHermit leaderboard.');
-  } else if (ranked) finish('Ranked game recorded locally (no server connection).');
-  else finish(submitNote);
+    finish(() => T('Ranked round recorded in your cloud save and posted to the StarHermit leaderboard.'));
+  } else if (ranked) finish(() => T('Ranked game recorded locally (no server connection).'));
+  else finish(() => T('Unranked local game.'));
   postToLeaderboard(ranked ? Math.max(0, score.total) : null);
 }
+
+let lbLine = null;   // current leaderboard line (thunk, re-read on a language change)
 
 // Signed in only: post a ranked round to the `high-score` board and show the
 // player's rank on the results screen.
@@ -157,12 +170,13 @@ function postToLeaderboard(total) {
   const line = document.getElementById('result-lb');
   if (total == null || !api.hosted) { line.hidden = true; return; }
   line.hidden = false;
-  line.textContent = shText('lbPosting');
+  lbLine = () => shText('lbPosting');
+  line.textContent = lbLine();
   const round = game;
   api.submitScore(total).then(r => {
     if (game !== round) return;
-    line.textContent = !r.posted ? shText('lbNotPosted')
-      : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted');
+    lbLine = () => (!r.posted ? shText('lbNotPosted') : r.rank ? shText('lbRank', { rank: r.rank }) : shText('lbPosted'));
+    line.textContent = lbLine();
   });
 }
 
@@ -202,11 +216,11 @@ function doCommand(cmd) {
     const refs = cmd.cards;
     audio.removePair();
     if (renderer) renderer.animateRemoval(refs, () => syncAll());
-    ui.live('Removed ' + describeCards(before, refs) + '. ' +
-      (R.isTerminal(game.state).over ? '' : hintText()));
-  } else if (cmd.type === 'draw') { audio.draw(); ui.live('Drew ' + R.cardName(game.state.waste[game.state.waste.length - 1]) + '.'); }
-  else if (cmd.type === 'recycle') { audio.recycle(); ui.live('Waste recycled. ' + game.state.recyclesLeft + ' left.'); }
-  else if (cmd.type === 'undo') { audio.undo(); ui.live('Undone.'); }
+    ui.live(T('Removed {cards}.', { cards: describeCards(before, refs, cardSpoken) }) + ' ' +
+      (R.isTerminal(game.state).over ? '' : hintText(cardSpoken)));
+  } else if (cmd.type === 'draw') { audio.draw(); ui.live(T('Drew {card}.', { card: cardSpoken(game.state.waste[game.state.waste.length - 1]) })); }
+  else if (cmd.type === 'recycle') { audio.recycle(); ui.live(T('Waste recycled. {n} left.', { n: game.state.recyclesLeft })); }
+  else if (cmd.type === 'undo') { audio.undo(); ui.live(T('Undone.')); }
   game.selection = [];
   kbFocus = null;
   const t = R.isTerminal(game.state);
@@ -234,7 +248,7 @@ function advanceTutorial() {
   if (game.tutorialStep >= C.TUTORIAL.lessons.length) {
     save.settings.tutorialDone = true;
     persistSave();
-    ui.toast('Lessons complete!');
+    ui.toast(T('Lessons complete!'));
     quitToModes();
     return;
   }
@@ -242,42 +256,42 @@ function advanceTutorial() {
   syncAll();
 }
 
+const ERRORS = {
+  'not-a-pair': 'Those cards do not total 14.',
+  'card-covered': 'That card is still covered by cards below it.',
+  'card-absent': 'That card is already removed.',
+  'stock-empty': 'The stock is empty — recycle the waste if you can.',
+  'stock-not-empty': 'You can only recycle when the stock is empty.',
+  'recycle-unavailable': 'No recycles left.',
+  'nothing-to-undo': 'Nothing to undo.',
+  'same-card': 'Pick two different cards.',
+  'waste-empty': 'The waste pile is empty.',
+  'game-over': 'This round is over.'
+};
 function explainError(err) {
-  return {
-    'not-a-pair': 'Those cards do not total 14.',
-    'card-covered': 'That card is still covered by cards below it.',
-    'card-absent': 'That card is already removed.',
-    'stock-empty': 'The stock is empty — recycle the waste if you can.',
-    'stock-not-empty': 'You can only recycle when the stock is empty.',
-    'recycle-unavailable': 'No recycles left.',
-    'nothing-to-undo': 'Nothing to undo.',
-    'same-card': 'Pick two different cards.',
-    'waste-empty': 'The waste pile is empty.',
-    'game-over': 'This round is over.'
-  }[err] || 'That action is not legal right now (' + err + ').';
+  return ERRORS[err] ? T(ERRORS[err]) : T('That action is not legal right now ({code}).', { code: err });
 }
 
-function describeCards(state, refs) {
+function describeCards(state, refs, name = cardShort) {
   return refs.map(r => {
-    if (r.zone === 'waste') return R.cardName(state.waste[state.waste.length - 1]);
-    return R.cardName(state.pyramid[r.index]);
+    if (r.zone === 'waste') return name(state.waste[state.waste.length - 1]);
+    return name(state.pyramid[r.index]);
   }).join(' + ');
 }
 
-function hintText() {
+function hintText(name = cardShort) {
   const acts = R.legalActions(game.state);
   const rem = acts.find(a => a.type === 'remove');
-  if (rem) return 'Hint: ' + describeCards(game.state, rem.cards) + ' totals 14.';
-  if (acts.some(a => a.type === 'draw')) return 'Hint: draw from the stock.';
-  if (acts.some(a => a.type === 'recycle')) return 'Hint: recycle the waste.';
-  return 'No moves left.';
+  if (rem) return T('Hint: {cards} totals 14.', { cards: describeCards(game.state, rem.cards, name) });
+  if (acts.some(a => a.type === 'draw')) return T('Hint: draw from the stock.');
+  if (acts.some(a => a.type === 'recycle')) return T('Hint: recycle the waste.');
+  return T('No moves left.');
 }
 
 function doHint() {
   if (!game || flow !== 'active') return;
-  const msg = hintText();
-  ui.toast(msg, 3500);
-  ui.live(msg);
+  ui.toast(hintText(), 3500);
+  ui.live(hintText(cardSpoken));
   audio.select();
   const acts = R.legalActions(game.state);
   const rem = acts.find(a => a.type === 'remove');
@@ -297,14 +311,14 @@ function tapTarget(ref) {
   if (game.selection.length === 2) {
     doCommand({ type: 'remove', cards: game.selection.slice(0, 2) });
   } else {
-    ui.live('Selected ' + describeRef(ref) + '. Pick a second card totaling 14.');
+    ui.live(T('Selected {card}. Pick a second card totaling 14.', { card: describeRef(ref) }));
     syncAll();
   }
 }
 
 function describeRef(ref) {
-  if (ref.zone === 'waste') return 'waste ' + R.cardName(game.state.waste[game.state.waste.length - 1]);
-  return R.cardName(game.state.pyramid[ref.index]);
+  if (ref.zone === 'waste') return T('waste {card}', { card: cardSpoken(game.state.waste[game.state.waste.length - 1]) });
+  return cardSpoken(game.state.pyramid[ref.index]);
 }
 
 /* ---------- sync ---------- */
@@ -312,9 +326,9 @@ function describeRef(ref) {
 function syncAll() {
   if (!game) return;
   const score = R.scoreComponents(game.state);
-  ui.updateHUD(game.state, score, game.cfg.label, { cardName: R.cardName });
+  ui.updateHUD(game.state, score, modeLabel(game.cfg), { cardName: cardShort });
   const legal = R.legalActions(game.state);
-  ui.syncBoard(R, game.state, game.selection, legal);
+  ui.syncBoard(R, game.state, game.selection, legal, { short: cardShort, spoken: cardSpoken });
   if (renderer) renderer.syncState(game.state, game.selection);
   audio.setIntensity(game.state.pyramid.filter(c => c != null).length < 10 ? 0.8 : 0.2);
 }
@@ -385,50 +399,14 @@ function bind() {
   on('btn-title-help', () => { ui.returnTo = 'scr-title'; ui.show('scr-help'); });
   on('btn-title-settings', () => { ui.returnTo = 'scr-title'; ui.show('scr-settings'); });
   on('btn-title-board', showLeaderboards);
-  ui.el['btn-signin'].textContent = shText('signIn');
-  ui.el['btn-invite'].textContent = shText('invite');
   on('btn-signin', () => api.signIn());
   on('btn-invite', copyInvite);
 
   on('mode-learn', () => startRound({ mode: 'learn', label: 'Learn', seed: 101, tutorial: true, themeId: 'dusk' }));
-  on('mode-journey', () => { ui.renderJourney(C, save.journey); ui.show('scr-journey'); });
+  on('mode-journey', () => { ui.renderJourney(C, save.journey, stageName); ui.show('scr-journey'); });
   on('mode-daily', startDaily);
-  on('mode-practice', () => {
-    const list = ui.el['diff-list'];
-    list.innerHTML = '';
-    for (const d of C.DIFFICULTIES) {
-      const b = document.createElement('button');
-      b.innerHTML = d.label + ' <span class="muted">— ' + d.description + '</span>';
-      b.addEventListener('click', () => {
-        const raw = ui.el['practice-seed'].value.trim();
-        let seed = randomSeed();
-        if (raw) {
-          if (!/^\d{1,10}$/.test(raw)) { ui.toast('Seeds are numbers only — using a random deal.'); }
-          else seed = parseInt(raw, 10) >>> 0;
-        }
-        startRound({
-          mode: 'practice', label: 'Practice — ' + d.label, seed,
-          options: { recycles: d.recycles }, ranked: false
-        });
-      });
-      list.appendChild(b);
-    }
-    ui.show('scr-practice');
-  });
-  on('mode-challenge', () => {
-    const list = ui.el['challenge-list'];
-    list.innerHTML = '';
-    for (const ch of C.CHALLENGES) {
-      const b = document.createElement('button');
-      b.innerHTML = ch.name + ' <span class="muted">— ' + ch.description + '</span>';
-      b.addEventListener('click', () => startRound({
-        mode: 'challenge', label: 'Challenge — ' + ch.name, seed: ch.seed,
-        options: ch.mechanics, ranked: false
-      }));
-      list.appendChild(b);
-    }
-    ui.show('scr-challenge');
-  });
+  on('mode-practice', () => { renderPractice(); ui.show('scr-practice'); });
+  on('mode-challenge', () => { renderChallenges(); ui.show('scr-challenge'); });
   on('mode-score', () => {
     const seed = randomSeed();
     startRound({
@@ -460,7 +438,9 @@ function bind() {
   on('btn-breakdown', () => {
     if (!game) return;
     const s = R.scoreComponents(game.state);
-    ui.toast(`Pairs ${s.pairs} · Clear ${s.clearBonus} · Stock ${s.stockBonus} · Recycle ${s.recycleBonus} · Penalty ${s.invalidPenalty}`, 4000);
+    ui.toast(T('Pairs {pairs} · Clear {clear} · Stock {stock} · Recycle {recycle} · Penalty {penalty}', {
+      pairs: s.pairs, clear: s.clearBonus, stock: s.stockBonus, recycle: s.recycleBonus, penalty: s.invalidPenalty,
+    }), 4000);
   });
 
   // pause menu
@@ -563,6 +543,39 @@ function bindSettings() {
   sel('opt-cvd', 'cvd');   // Quality (#opt-tier) is wired by the Graphics panel
 }
 
+/* Practice and Challenge lists (rebuilt on open and on a language change). */
+function listButton(name, description, onClick) {
+  const b = document.createElement('button');
+  const span = document.createElement('span');
+  span.className = 'muted';
+  span.textContent = '— ' + description;
+  b.append(name + ' ', span);
+  b.addEventListener('click', onClick);
+  return b;
+}
+function renderPractice() {
+  const list = ui.el['diff-list'];
+  list.replaceChildren(...C.DIFFICULTIES.map(d => listButton(T(d.label), T(d.description), () => {
+    const raw = ui.el['practice-seed'].value.trim();
+    let seed = randomSeed();
+    if (raw) {
+      if (!/^\d{1,10}$/.test(raw)) { ui.toast(T('Seeds are numbers only — using a random deal.')); }
+      else seed = parseInt(raw, 10) >>> 0;
+    }
+    startRound({
+      mode: 'practice', label: 'Practice — ' + d.label, seed,
+      options: { recycles: d.recycles }, ranked: false
+    });
+  })));
+}
+function renderChallenges() {
+  const list = ui.el['challenge-list'];
+  list.replaceChildren(...C.CHALLENGES.map(ch => listButton(T(ch.name), T(ch.description), () => startRound({
+    mode: 'challenge', label: 'Challenge — ' + ch.name, seed: ch.seed,
+    options: ch.mechanics, ranked: false
+  }))));
+}
+
 function pauseGame(silent) {
   if (!game || flow !== 'active') return;
   flow = 'paused';
@@ -603,7 +616,7 @@ function onKey(e) {
     const i = targets.findIndex(t => t.zone === (kbFocus && kbFocus.zone) && t.index === (kbFocus && kbFocus.index));
     const d = isKey('next', e) ? 1 : -1;
     kbFocus = targets[(i + d + targets.length) % targets.length];
-    ui.live('Focused ' + describeRef(kbFocus) + '. Enter to select.');
+    ui.live(T('Focused {card}. {key} to select.', { card: describeRef(kbFocus), key: (bindings.confirm || []).map(keyLabel).join('/') }));
     audio.select();
     return;
   }
@@ -616,62 +629,103 @@ function navTargets() {
   return out;
 }
 
+// Local board notes, read through T() in renderBoard.
+const BOARD_NOTES = {
+  none: 'Personal bests (this game has no platform leaderboard).',
+  unavailable: 'Personal bests (platform board unavailable).',
+  local: 'Personal bests (local).',
+};
+let boardView = null;   // last leaderboard data (re-rendered on a language change)
 async function showLeaderboards() {
   ui.show('scr-board');
-  const me = api.displayName() || 'You';
-  const renderLocal = note => {
-    ui.el['board-source'].textContent = note;
-    const rows = Object.entries(save.best)
-      .sort((a, b) => b[1].score - a[1].score).slice(0, 10)
-      .map(([k, v], i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(me) + '</td><td>' + esc(k) + '</td><td style="text-align:right">' + v.score + '</td></tr>');
-    ui.el['board-global'].innerHTML = rows.join('') || '<tr><td class="muted">No personal bests yet.</td></tr>';
-    ui.el['board-daily'].innerHTML = '<tr><td class="muted">—</td></tr>';
-  };
+  boardView = null;
   if (api.hosted) {
     try {
       const entries = await api.boardEntries(false);
-      if (!entries) { renderLocal('Personal bests (this game has no platform leaderboard).'); return; }
-      ui.el['board-source'].textContent = 'StarHermit high-score board (ranked rounds). Personal bests are in your cloud save.';
-      ui.el['board-global'].innerHTML = entries.map((e, i) =>
-        '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + (e.me ? ' (you)' : '') + '</td><td style="text-align:right">' + e.score + '</td></tr>'
-      ).join('') || '<tr><td class="muted">No entries yet.</td></tr>';
-      ui.el['board-daily'].innerHTML = '<tr><td class="muted">—</td></tr>';
-    } catch (e) { renderLocal('Personal bests (platform board unavailable).'); }
+      boardView = entries ? { entries } : { local: 'none' };
+    } catch (e) { boardView = { local: 'unavailable' }; }
+  } else boardView = { local: 'local' };
+  renderBoard();
+}
+function renderBoard() {
+  if (!boardView) return;
+  const empty = text => '<tr><td class="muted">' + esc(text) + '</td></tr>';
+  ui.el['board-daily'].innerHTML = empty('—');
+  if (boardView.entries) {
+    ui.el['board-source'].textContent = T('StarHermit high-score board (ranked rounds). Personal bests are in your cloud save.');
+    ui.el['board-global'].innerHTML = boardView.entries.map((e, i) =>
+      '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + (e.me ? ' ' + esc(T('(you)')) : '') + '</td><td style="text-align:right">' + e.score + '</td></tr>'
+    ).join('') || empty(T('No entries yet.'));
     return;
   }
-  renderLocal('Personal bests (local).');
+  const me = api.displayName() || T('You');
+  ui.el['board-source'].textContent = T(BOARD_NOTES[boardView.local]);
+  const rows = Object.entries(save.best)
+    .sort((a, b) => b[1].score - a[1].score).slice(0, 10)
+    .map(([k, v], i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(me) + '</td><td>' + esc(bestKeyLabel(k)) + '</td><td style="text-align:right">' + v.score + '</td></tr>');
+  ui.el['board-global'].innerHTML = rows.join('') || empty(T('No personal bests yet.'));
 }
 
 /* ---------- boot ---------- */
 
+const SYNC_TEXT = { synced: 'cloud synced', saving: 'saving…', error: 'sync error — retrying', offline: 'offline' };
 function refreshIdentity() {
   ui.el['player-name'].textContent = api.displayName() || '';
-  ui.el['sync-status'].textContent = api.hosted
-    ? { synced: 'cloud synced', saving: 'saving…', error: 'sync error — retrying', offline: 'offline' }[api.syncState] || 'cloud synced'
-    : '';
-  ui.el['title-status'].textContent = api.statusLine();
+  ui.el['sync-status'].textContent = api.hosted ? T(SYNC_TEXT[api.syncState] || SYNC_TEXT.synced) : '';
+  ui.el['title-status'].textContent = api.statusLine(T);
+  ui.el['btn-signin'].textContent = shText('signIn');
+  ui.el['btn-invite'].textContent = shText('invite');
   ui.el['btn-signin'].hidden = !api.canSignIn();
   ui.el['btn-invite'].hidden = !api.inviteLink();
 }
 
-function adoptRemote(remote) {
-  // Remote wins on conflict; keep the settings object identity (audio/renderer
-  // hold a reference to it) and localStorage as the offline cache.
-  for (const k of Object.keys(save)) {
-    if (k === 'settings') Object.assign(save.settings, remote.settings || {});
-    else save[k] = remote[k];
+/* Merge a cloud save into this device's (never remote-wins). At start the
+ * preferences follow the cloud copy; after a save conflict this device's
+ * preferences stay. Keeps the settings object identity (audio/renderer hold a
+ * reference to it). Returns true when the merge holds something the cloud lacked. */
+function adoptRemote(remote, { keepLocalSettings = false } = {}) {
+  const merged = mergeSaves(save, remote);
+  const { settings: _a, ...mergedProgress } = merged;
+  const { settings: _b, ...remoteProgress } = mergeSaves(remote, remote);
+  const cloudBehind = JSON.stringify(mergedProgress) !== JSON.stringify(remoteProgress);
+  for (const k of Object.keys(merged)) {
+    if (k === 'settings') { if (!keepLocalSettings) Object.assign(save.settings, remote.settings || {}); }
+    else save[k] = merged[k];
   }
   storeSave(save);
+  return cloudBehind;
 }
+
+/* Language: re-render every visible text without restarting the round. */
+let gfxPanel = null;
+function relocalize() {
+  renderKeyHelp();
+  refreshIdentity();
+  if (gfxPanel) gfxPanel.relocalize();
+  if (game) { syncAll(); labelLesson(); }
+  if (!ui.el['scr-journey'].hidden) ui.renderJourney(C, save.journey, stageName);
+  if (!ui.el['scr-practice'].hidden) renderPractice();
+  if (!ui.el['scr-challenge'].hidden) renderChallenges();
+  if (!ui.el['scr-board'].hidden) renderBoard();
+  ui.relabelResults();
+  const lb = document.getElementById('result-lb');
+  if (lbLine && lb && !lb.hidden) lb.textContent = lbLine();
+}
+onLanguage(relocalize);
 
 async function boot() {
   await api.init();
   api.onSyncChange = refreshIdentity;
   api.onAuthChange = a => { if (!a.signedIn) ui.toast(shText('signedOut'), 4000); };
+  // Another device saved first: the reloaded cloud copy is merged with ours and the merge saved.
+  api.onConflict = remote => {
+    if (remote) adoptRemote(remote, { keepLocalSettings: true });
+    api.queueCloudSave(save);
+    if (flow === 'title') ui.el['resume-line'].hidden = !save.snapshot;
+  };
   if (api.hosted) {
     const remote = await api.pullCloudSave();
-    if (remote) adoptRemote(remote);
-    else api.queueCloudSave(save);   // no remote doc yet → push the local one
+    if (!remote || adoptRemote(remote)) api.queueCloudSave(save);   // cloud behind → push the merge
     // Platform-stored preferences win over the local defaults.
     const prefs = await api.loadPlatformSettings(save.settings);
     if (prefs && Object.keys(prefs).length) { Object.assign(save.settings, prefs); storeSave(save); }
@@ -693,9 +747,9 @@ async function boot() {
     renderer = null;
     ui.el.gl.style.display = 'none';
     ui.el['board-dom'].classList.add('visible');
-    ui.toast('3D unavailable — using the accessible 2D board. Your progress is preserved.', 6000);
+    ui.toast(T('3D unavailable — using the accessible 2D board. Your progress is preserved.'), 6000);
   }
-  initGraphicsPanel({ settings: save.settings, renderer, persist: persistSave });
+  gfxPanel = initGraphicsPanel({ settings: save.settings, renderer, persist: persistSave, lang: currentLang });
   goTitle();
   flow = 'title';
 }

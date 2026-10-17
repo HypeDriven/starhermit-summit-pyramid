@@ -56,7 +56,7 @@ export class AudioEngine {
     this.buses.amb.gain.value = (this.settings.amb / 100) * 0.25;
   }
 
-  caption(text) { if (this.settings.captions && text) this.onCaption(text); }
+  caption(text) { if (this.settings.captions && text) this.onCaption(text); }   // English key; the UI shows T(text)
 
   /* Lazy-fetch + decode sfx/<name>.opus (only after the gesture unlock in
      ensure() created the context). Result is cached in every state. */

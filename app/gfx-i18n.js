@@ -1,5 +1,5 @@
 /* Summit Pyramid — strings for the Graphics settings section.
- * Locale comes from navigator.language (the game has no language setting). */
+ * Locale follows the game's Language setting (i18n.js). */
 
 const EN = {
   graphics: 'Graphics', quality: 'Quality', auto: 'Auto (detected: {tier})',

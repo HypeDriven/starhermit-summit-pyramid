@@ -2,7 +2,7 @@
  * Offline-first: the local save doc is the authoritative offline cache and local play
  * never touches the network. The Platform class is a thin adapter over window.StarHermit
  * (starhermit-sdk.js): launch token + renewal, sign-in, nickname, the game:<slug> cloud-save
- * slot (remote wins on start), settings KV, controls, invite link and the read-only platform
+ * slot (merged with the local save at start and after a save conflict), settings KV, controls, invite link and the read-only platform
  * board. The game never calls its own server routes from the client: standalone play (any
  * host, loopback included) makes no network calls and uses the device clock. Launch tokens
  * are never persisted. */
@@ -53,6 +53,45 @@ export function loadSave() {
   } catch (e) { return defaultSave(); }
 }
 
+/* Merge two save docs (this device's first) — used at start and after a save
+ * conflict; never remote-wins. Journey unlocks, stage bests, personal bests and
+ * counters keep the larger value, achievements the earliest unlock, the streak
+ * comes from the doc with more finished games, and a resumable in-progress game
+ * on this device is kept (else the other one's). Settings stay `a`'s. */
+export function mergeSaves(a, b) {
+  const A = Object.assign(defaultSave(), a || {}), B = Object.assign(defaultSave(), b || {});
+  const obj = o => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+  const num = v => (Number.isFinite(+v) ? +v : 0);
+  const completed = Object.assign({}, obj(A.journey).completed);
+  for (const [k, v] of Object.entries(obj(obj(B.journey).completed))) {
+    if (completed[k] == null || num(v) > num(completed[k])) completed[k] = v;
+  }
+  const achievements = Object.assign({}, obj(A.achievements));
+  for (const [k, v] of Object.entries(obj(B.achievements))) {
+    if (!achievements[k] || (v && v < achievements[k])) achievements[k] = v;
+  }
+  const best = Object.assign({}, obj(A.best));
+  for (const [k, v] of Object.entries(obj(B.best))) {
+    if (!best[k] || num(v && v.score) > num(best[k].score)) best[k] = v;
+  }
+  const sa = Object.assign(defaultSave().stats, obj(A.stats)), sb = Object.assign(defaultSave().stats, obj(B.stats));
+  const games = s => num(s.wins) + num(s.losses);
+  return {
+    version: SAVE_VERSION,
+    settings: A.settings,
+    journey: { unlocked: Math.max(num(obj(A.journey).unlocked) || 1, num(obj(B.journey).unlocked) || 1), completed },
+    achievements,
+    best,
+    stats: {
+      wins: Math.max(num(sa.wins), num(sb.wins)),
+      losses: Math.max(num(sa.losses), num(sb.losses)),
+      streak: games(sb) > games(sa) ? num(sb.streak) : num(sa.streak),
+      totalPairs: Math.max(num(sa.totalPairs), num(sb.totalPairs)),
+    },
+    snapshot: A.snapshot || B.snapshot || null,
+  };
+}
+
 export function storeSave(save) {
   try {
     const payload = JSON.stringify(save);
@@ -69,6 +108,7 @@ export class Platform {
     this.syncState = 'offline';  // offline | saving | synced | error
     this.onSyncChange = null;
     this.onAuthChange = null;
+    this.onConflict = null;      // (reloaded cloud doc | null) after a save conflict
     this._pushedPrefs = {};
     this._prefTimer = null;
   }
@@ -86,6 +126,9 @@ export class Platform {
         if (this.onSyncChange) this.onSyncChange();
       });
       this.sh.on('saved', ok => this._setSync(ok ? 'synced' : 'error'));
+      // Another device saved since our last load: the SDK refused the write.
+      // Reload the cloud copy; the game merges it with this device's and saves again.
+      this.sh.on('saveconflict', () => { this.resolveConflict(); });
     }
     if (this.hosted) {
       this.fetchAccountProfile().catch(() => {});
@@ -123,15 +166,15 @@ export class Platform {
     return p ? String(p.displayName).slice(0, 24) : 'Player';
   }
 
-  statusLine() {
+  statusLine(t = (k, v) => String(k).replace(/\{(\w+)\}/g, (m, n) => (v && n in v ? v[n] : m))) {
     if (this.hosted) {
       const sync = {
         synced: 'cloud synced', saving: 'saving to cloud…',
         error: 'cloud sync error — will retry', offline: 'offline'
       }[this.syncState] || 'cloud synced';
-      return 'Signed in as ' + (this.displayName() || '…') + ' · ' + sync;
+      return t('Signed in as {name}', { name: this.displayName() || '…' }) + ' · ' + t(sync);
     }
-    return 'Local play — fully offline-capable';
+    return t('Local play — fully offline-capable');
   }
 
   /* ---- cloud save: the game:<slug> slot mirrors the local doc ---- */
@@ -149,6 +192,16 @@ export class Platform {
   }
 
   flushCloudSave() { return this.hosted ? this.sh.flushSave(true) : Promise.resolve(false); }
+
+  async resolveConflict() {
+    if (!this.hosted) return;
+    const doc = await this.sh.loadJSON().catch(() => null);
+    if ((this.sh.saveConflicted && this.sh.saveConflicted()) || (this.sh.saveLoadFailed && this.sh.saveLoadFailed())) {
+      this._setSync('error');
+      return;
+    }
+    if (this.onConflict) this.onConflict(doc && doc.version === SAVE_VERSION ? doc : null);
+  }
 
   async pullCloudSave() {
     if (!this.hosted) return null;

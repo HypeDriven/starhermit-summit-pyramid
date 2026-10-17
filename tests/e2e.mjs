@@ -41,6 +41,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { launchToken, stubStarHermit } from './starhermit-e2e.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOT = (stage, vp) => `/tmp/summit-pyramid-e2e-${stage}-${vp}.png`;
@@ -279,9 +280,10 @@ async function runPass(browser, name, ctxOpts, { full }) {
   });
   // Standalone (no launch token) must never call the game's own server routes.
   const ownServerCalls = [];
+  const state = { allowApi: false };
   page.on('request', (r) => {
     const u = new URL(r.url());
-    if (u.host === `127.0.0.1:${port}` && /^\/(api|ws)(\/|$)/.test(u.pathname)) ownServerCalls.push(u.pathname);
+    if (!state.allowApi && u.host === `127.0.0.1:${port}` && /^\/(api|ws)(\/|$)/.test(u.pathname)) ownServerCalls.push(u.pathname);
   });
   page.on('response', (r) => {
     if (r.status() >= 400 && !/\/favicon/.test(r.url())) {
@@ -422,6 +424,7 @@ async function runPass(browser, name, ctxOpts, { full }) {
       await page.screenshot({ path: SHOT('mobile-play', name) });
       ok(`started practice and made ${n} real touch moves (moves=${moves.trim()})`);
     }
+    await languageFlow(page, name, state, ok);
   } finally {
     await context.close();
   }
@@ -430,6 +433,80 @@ async function runPass(browser, name, ctxOpts, { full }) {
   ok('no page errors');
   if (ownServerCalls.length) throw new Error(`${name} pass made standalone own-server requests: ${ownServerCalls.join(', ')}`);
   ok('standalone load made zero same-origin /api or /ws requests');
+}
+
+// ---------- Language + Report a problem (signed in against a stubbed StarHermit API) ----------
+// Automatic follows the account's preferredLanguage (fr-CA); choosing Italian in
+// Settings re-renders the open screen in place and saves ui.language; Report a
+// problem posts to /reports. The mobile pass also switches to German and checks
+// the title, Settings, modes and pause screens fit 390 px.
+async function languageFlow(page, name, state, ok) {
+  const vw = page.viewportSize().width;
+  const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  state.allowApi = true;
+  const calls = await stubStarHermit(page, { preferredLanguage: 'fr-CA' });
+  try {
+    await page.goto('about:blank');
+    await page.goto(`http://127.0.0.1:${port}/index.html#game_token=` + launchToken(), { waitUntil: 'load' });
+    await page.waitForFunction(() => !document.getElementById('scr-title').hidden && document.documentElement.lang === 'fr-CA', null, { timeout: 15000 });
+    const settingsBtn = page.locator('#scr-title').getByRole('button', { name: 'Paramètres', exact: true });
+    if (!(await settingsBtn.isVisible())) throw new Error(`${name}: title not in French`);
+    await settingsBtn.click();
+    await page.waitForSelector('#scr-settings:not([hidden])');
+    const choice = page.locator('#scr-settings [data-game-language="choice"]');
+    await choice.scrollIntoViewIfNeeded();
+    const autoLabel = await choice.locator('option').first().textContent();
+    if (autoLabel !== 'Automatique — Français (Canada)') throw new Error(`${name}: Automatic label not resolved: ${autoLabel}`);
+    const bb = await choice.boundingBox();
+    if (!bb || bb.x < 0 || bb.x + bb.width > vw + 1) throw new Error(`${name}: language select cut off (${JSON.stringify(bb)})`);
+    await choice.selectOption('it-IT');
+    await page.waitForFunction(() => document.documentElement.lang === 'it-IT');
+    await page.waitForFunction(() => /Salvato/.test(document.querySelector('[data-game-language="status"]')?.textContent || ''));
+    if (calls.settings['ui.language']?.choice !== 'it-IT') throw new Error(`${name}: ui.language not saved: ${JSON.stringify(calls.settings)}`);
+    const title = (await page.locator('#scr-settings h2').first().textContent()).trim();
+    if (title !== 'Impostazioni') throw new Error(`${name}: settings title not re-rendered: ${title}`);
+    const gfx = (await page.locator('#gfx-heading').textContent()).trim();
+    if (gfx !== 'Grafica') throw new Error(`${name}: graphics section not re-rendered: ${gfx}`);
+    if ((await page.locator('[data-game-language="choice"]').count()) !== 1) throw new Error(`${name}: expected exactly one language selector`);
+    await page.locator('[data-game-report="title"]').scrollIntoViewIfNeeded();
+    await page.fill('[data-game-report="title"]', 'Test report');
+    await page.click('[data-game-report="send"]');
+    await page.waitForFunction(() => /Grazie/.test(document.querySelector('[data-game-report="status"]')?.textContent || ''));
+    if (!calls.reports?.[0] || calls.reports[0].kind !== 'bug') throw new Error(`${name}: report not posted`);
+    await page.screenshot({ path: SHOT('language', name) });
+    if (vw < 500) {
+      await choice.selectOption('de-DE');
+      await page.waitForFunction(() => document.documentElement.lang === 'de-DE');
+      await page.waitForTimeout(100);
+      await page.screenshot({ path: SHOT('settings-de', name) });
+      if ((await overflow()) > 1) throw new Error(`${name}: German settings overflow`);
+      await page.locator('#scr-settings').getByRole('button', { name: 'Zurück', exact: true }).click();
+      await page.waitForSelector('#scr-title:not([hidden])');
+      await page.screenshot({ path: SHOT('title-de', name) });
+      if ((await overflow()) > 1) throw new Error(`${name}: German title overflows`);
+      await page.locator('#scr-title').getByRole('button', { name: 'Spielen', exact: true }).click();
+      await skipTutorial(page, true);
+      await page.screenshot({ path: SHOT('modes-de', name) });
+      if ((await overflow()) > 1) throw new Error(`${name}: German modes overflow`);
+      await page.locator('#scr-modes').getByRole('button', { name: /^Training/ }).click();
+      await page.locator('#diff-list button', { hasText: 'Grat' }).click();
+      await page.waitForSelector('#topbar:not([hidden])');
+      await page.screenshot({ path: SHOT('play-de', name) });
+      if ((await overflow()) > 1) throw new Error(`${name}: German HUD overflows`);
+      await page.locator('#tray').getByRole('button', { name: 'Pause', exact: true }).click();
+      await page.waitForSelector('#scr-pause:not([hidden])');
+      await page.screenshot({ path: SHOT('pause-de', name) });
+      if ((await overflow()) > 1) throw new Error(`${name}: German pause overflows`);
+      await page.locator('#scr-pause').getByRole('button', { name: 'Einstellungen', exact: true }).click();
+      await page.waitForSelector('#scr-settings:not([hidden])');
+    }
+    await page.locator('[data-game-language="choice"]').selectOption('auto');
+    await page.waitForFunction(() => document.documentElement.lang === 'fr-CA');
+    ok('Language — Automatic resolved to fr-CA, Italian re-rendered live and saved to ui.language, report posted');
+  } finally {
+    await page.unroute(/\/api\/v1\//);
+    state.allowApi = false;
+  }
 }
 
 // ---------- main ----------

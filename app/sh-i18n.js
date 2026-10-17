@@ -1,5 +1,6 @@
 // sh-i18n.js — strings for the StarHermit platform controls (sign-in,
-// invite) in every supported locale, picked from navigator.language.
+// invite) in every supported locale, following the game's Language setting.
+import { currentLang } from './i18n.js';
 const en = {
   signIn: 'Sign in with StarHermit', invite: 'Invite a friend',
   copied: 'Invite link copied to the clipboard', copyFail: 'Copy this invite link: {url}',
@@ -60,7 +61,7 @@ export function shLocale(tag) {
   return BY_LANG[lang] || 'en-US';
 }
 
-export function shText(key, vars = {}, tag = (typeof navigator !== 'undefined' ? navigator.language : 'en-US')) {
+export function shText(key, vars = {}, tag = currentLang()) {
   const s = SH_STRINGS[shLocale(tag)][key] ?? en[key];
   return String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
 }

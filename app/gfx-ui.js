@@ -15,12 +15,16 @@ export function migrateGraphics(settings) {
   return settings.gfx;
 }
 
-export function initGraphicsPanel({ settings, renderer, persist }) {
-  const t = gfxStrings(typeof navigator !== 'undefined' ? navigator.language : 'en-US');
+export function initGraphicsPanel({ settings, renderer, persist, lang }) {
+  const tag = () => (lang ? lang() : (typeof navigator !== 'undefined' ? navigator.language : 'en-US'));
+  let t = gfxStrings(tag());
   migrateGraphics(settings);
   const detected = renderer ? renderer.detected : 'low';
 
-  for (const el of document.querySelectorAll('#gfx-section [data-i18n]')) el.textContent = t(el.dataset.i18n);
+  const labelStatic = () => {
+    for (const el of document.querySelectorAll('#gfx-section [data-i18n]')) el.textContent = t(el.dataset.i18n);
+  };
+  labelStatic();
 
   // one select per category, "From preset (…)" first
   const host = $('gfx-cats');
@@ -30,6 +34,7 @@ export function initGraphicsPanel({ settings, renderer, persist }) {
     row.className = 'row';
     const label = document.createElement('label');
     label.htmlFor = 'gfx-' + cat;
+    label.dataset.gfxCat = cat;
     label.textContent = t(cat);
     const sel = document.createElement('select');
     sel.id = 'gfx-' + cat;
@@ -99,8 +104,17 @@ export function initGraphicsPanel({ settings, renderer, persist }) {
     refreshSummary();
   }
 
+  // Language change: relabel this section's own text in place (the shared
+  // options panel mounted in the same section is left alone).
+  function relocalize() {
+    t = gfxStrings(tag());
+    labelStatic();
+    for (const label of host.querySelectorAll('label[data-gfx-cat]')) label.textContent = t(label.dataset.gfxCat);
+    refresh();
+  }
+
   refresh();
   // keep the cost summary and post-processing note current while the panel is open
   setInterval(() => { if (!$('scr-settings').hidden) refreshSummary(); }, 1000);
-  return { refresh };
+  return { refresh, relocalize };
 }

@@ -1,7 +1,8 @@
 // platform.test.mjs — the StarHermit adapter (app/session.js) over
 // starhermit-sdk.js with a stubbed fetch and launch hash: token read,
 // nickname, cloud-save path game:<slug> round-trip, settings patch,
-// controls, and no network standalone.
+// controls, no network standalone, merge of two saves and the save-conflict
+// reload → merge → save.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -19,7 +20,7 @@ function setup(hash, hostname = 'summit-test.starhermit.com') {
     const json = (o) => new Response(JSON.stringify(o));
     if (path.endsWith('/profile')) return json({ nickname: 'Climber' });
     if (path.includes('/cloud-saves/')) {
-      if (init.method === 'PUT') { store.set(path, JSON.parse(init.body).dataBase64); return new Response(null, { status: 204 }); }
+      if (init.method === 'PUT') { store.set(path, JSON.parse(init.body).dataBase64); return json({ etag: '"v' + calls.length + '"' }); }
       return store.has(path) ? new Response(Buffer.from(store.get(path), 'base64')) : new Response(null, { status: 404 });
     }
     if (path.endsWith('/settings')) return init.method === 'PATCH' ? new Response(null, { status: 204 }) : json({ settings: { music: 5 } });
@@ -34,7 +35,7 @@ function setup(hash, hostname = 'summit-test.starhermit.com') {
   return { calls, sdk: SDK.create({ window: win, fetch }), location };
 }
 
-const { Platform, defaultSave } = await import('../app/session.js');
+const { Platform, defaultSave, mergeSaves } = await import('../app/session.js');
 
 test('launch token read + stripped; nickname from profile', async () => {
   const { sdk, location } = setup('#game_token=' + JWT);
@@ -94,8 +95,86 @@ test('standalone: no network at all', async () => {
 });
 
 test('sign-in offered on the platform host without a token', async () => {
-  const { sdk, calls } = setup('');
+  // canSignIn() is only true on a game's UUID host (<uuid>.starhermit.com).
+  const { sdk, calls } = setup('', '0b9d6f2e-3c4a-4e5b-9a7c-1d2e3f405162.starhermit.com');
   const p = await new Platform(sdk).init();
   assert.equal(p.canSignIn(), true);
   assert.equal(calls.length, 0);
+});
+
+test('mergeSaves keeps the better progress from both devices', () => {
+  const a = defaultSave(), b = defaultSave();
+  a.journey = { unlocked: 3, completed: { 'stage-01': 900, 'stage-02': 500 } };
+  b.journey = { unlocked: 5, completed: { 'stage-01': 1200, 'stage-04': 700 } };
+  a.achievements = { 'first-clear': 200 }; b.achievements = { 'first-clear': 100, 'streak-3': 300 };
+  a.best = { 'daily:x': { score: 10, seed: 1 } }; b.best = { 'daily:x': { score: 30, seed: 2 }, 'score:y': { score: 5, seed: 3 } };
+  a.stats = { wins: 4, losses: 1, streak: 2, totalPairs: 90 }; b.stats = { wins: 6, losses: 3, streak: 0, totalPairs: 80 };
+  a.snapshot = { cfg: { mode: 'practice' } }; b.snapshot = { cfg: { mode: 'daily' } };
+  a.settings.music = 11; b.settings.music = 99;
+  const m = mergeSaves(a, b);
+  assert.deepEqual(m.journey, { unlocked: 5, completed: { 'stage-01': 1200, 'stage-02': 500, 'stage-04': 700 } });
+  assert.deepEqual(m.achievements, { 'first-clear': 100, 'streak-3': 300 });
+  assert.deepEqual(m.best, { 'daily:x': { score: 30, seed: 2 }, 'score:y': { score: 5, seed: 3 } });
+  assert.deepEqual(m.stats, { wins: 6, losses: 3, streak: 0, totalPairs: 90 });
+  assert.deepEqual(m.snapshot, { cfg: { mode: 'practice' } }, 'this device keeps its game in progress');
+  assert.equal(m.settings.music, 11);
+  assert.deepEqual(mergeSaves(defaultSave(), b).snapshot, { cfg: { mode: 'daily' } });
+});
+
+test('save conflict: a refused write reloads the cloud copy; the merge is saved on top of it', async () => {
+  const slot = '/api/v1/me/cloud-saves/' + encodeURIComponent('game:summit-test');
+  const zipOf = async (doc) => {
+    let bytes = null;
+    const loc = { hash: '#game_token=' + JWT, search: '', pathname: '/', hostname: 'h', href: 'https://h/' };
+    const z = SDK.create({ window: { location: loc, history: { replaceState() {} } }, fetch: async (u, init = {}) => {
+      if (init.method === 'PUT') { bytes = JSON.parse(init.body).dataBase64; return new Response(JSON.stringify({ etag: '"z"' }), { status: 200 }); }
+      return new Response(null, { status: 404 });
+    }, setTimeout: () => 0, clearTimeout() {} });
+    z.init();
+    await z.writeSave(JSON.stringify(doc));
+    return bytes;
+  };
+  let stored = null, etag = null;
+  const puts = [];
+  const fetch = async (url, init = {}) => {
+    const method = init.method || 'GET', path = url.split('?')[0];
+    const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
+    if (path === slot + '/info') return json({ exists: !!stored, etag });
+    if (path === slot && method === 'GET') return stored ? new Response(Buffer.from(stored, 'base64')) : new Response(null, { status: 404 });
+    if (path === slot && method === 'PUT') {
+      const match = init.headers['If-Match'];
+      puts.push(match || init.headers['If-None-Match']);
+      if ((match && match !== etag) || (!match && stored)) return json({ error: 'precondition_failed' }, 412);
+      stored = JSON.parse(init.body).dataBase64;
+      etag = '"v' + puts.length + '"';
+      return json({ etag });
+    }
+    if (path.endsWith('/profile')) return json({ nickname: 'Climber' });
+    return new Response(null, { status: 404 });
+  };
+  const location = { hash: '#game_token=' + JWT, search: '', pathname: '/', hostname: 'h', href: 'https://h/' };
+  globalThis.location = location;
+  globalThis.window = { addEventListener() {} };
+  globalThis.document = { addEventListener() {}, hidden: false };
+  const sdk = SDK.create({ window: { location, history: { replaceState() {} } }, fetch, setTimeout: () => 0, clearTimeout() {} });
+  const p = await new Platform(sdk).init();
+  assert.equal(await p.pullCloudSave(), null);           // empty slot: later writes are conditional
+  const other = defaultSave();
+  other.journey = { unlocked: 9, completed: { 'stage-08': 1500 } };
+  stored = await zipOf(other);
+  etag = '"other"';
+  const local = defaultSave();
+  local.journey = { unlocked: 2, completed: { 'stage-01': 800 } };
+  let merged = null;
+  p.onConflict = (remote) => { merged = mergeSaves(local, remote); p.queueCloudSave(merged); };
+  p.queueCloudSave(local);
+  await sdk.flushSave();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(merged, 'conflict handed to the game');
+  assert.deepEqual(merged.journey, { unlocked: 9, completed: { 'stage-01': 800, 'stage-08': 1500 } });
+  assert.equal(sdk.saveConflicted(), false);
+  await sdk.flushSave();
+  assert.equal(puts.at(-1), '"other"', 'the merge is written on top of the reloaded version');
+  assert.equal((await p.pullCloudSave()).journey.unlocked, 9);
+  sdk.signOut();
 });
