@@ -2,7 +2,7 @@
  * Locale follows the game's Language setting (i18n.js). */
 
 const EN = {
-  graphics: 'Graphics', quality: 'Quality', auto: 'Auto (detected: {tier})',
+  graphics: 'Graphics', quality: 'Quality', level: 'Level {n}', auto: 'Auto (detected: {tier})',
   low: 'Low', balanced: 'Balanced', high: 'High', ultra: 'Ultra', medium: 'Medium',
   renderScale: 'Render scale', adaptive: 'Adaptive resolution', showFps: 'Show frame rate',
   fromPreset: 'From preset ({tier})', postFailed: 'Post-processing is unavailable on this device — rendering without effects.',
@@ -18,7 +18,7 @@ const STR = {
   'en-US': Object.assign({}, EN, { grade: 'Color grade' }),
   'en-GB': EN,
   'es-419': {
-    graphics: 'Gráficos', quality: 'Calidad', auto: 'Automática (detectada: {tier})',
+    graphics: 'Gráficos', quality: 'Calidad', level: 'Nivel {n}', auto: 'Automática (detectada: {tier})',
     low: 'Baja', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra', medium: 'Media',
     renderScale: 'Escala de renderizado', adaptive: 'Resolución adaptable', showFps: 'Mostrar fotogramas por segundo',
     fromPreset: 'Según el ajuste ({tier})', postFailed: 'El posprocesado no está disponible en este dispositivo; se renderiza sin efectos.',
@@ -30,7 +30,7 @@ const STR = {
     bloomOn: 'resplandor', reflectionsOn: 'reflejos', noAA: 'sin antialiasing', gpuUnknown: 'GPU desconocida',
   },
   'es-ES': {
-    graphics: 'Gráficos', quality: 'Calidad', auto: 'Automática (detectada: {tier})',
+    graphics: 'Gráficos', quality: 'Calidad', level: 'Nivel {n}', auto: 'Automática (detectada: {tier})',
     low: 'Baja', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra', medium: 'Media',
     renderScale: 'Escala de renderizado', adaptive: 'Resolución adaptativa', showFps: 'Mostrar fotogramas por segundo',
     fromPreset: 'Del preajuste ({tier})', postFailed: 'El posprocesado no está disponible en este dispositivo; se renderiza sin efectos.',
@@ -42,7 +42,7 @@ const STR = {
     bloomOn: 'resplandor', reflectionsOn: 'reflejos', noAA: 'sin suavizado', gpuUnknown: 'GPU desconocida',
   },
   'de-DE': {
-    graphics: 'Grafik', quality: 'Qualität', auto: 'Automatisch (erkannt: {tier})',
+    graphics: 'Grafik', quality: 'Qualität', level: 'Stufe {n}', auto: 'Automatisch (erkannt: {tier})',
     low: 'Niedrig', balanced: 'Ausgewogen', high: 'Hoch', ultra: 'Ultra', medium: 'Mittel',
     renderScale: 'Renderskalierung', adaptive: 'Adaptive Auflösung', showFps: 'Bildrate anzeigen',
     fromPreset: 'Aus Voreinstellung ({tier})', postFailed: 'Nachbearbeitung ist auf diesem Gerät nicht verfügbar – Darstellung ohne Effekte.',
@@ -54,7 +54,7 @@ const STR = {
     bloomOn: 'Leuchteffekt', reflectionsOn: 'Reflexionen', noAA: 'keine Kantenglättung', gpuUnknown: 'unbekannte GPU',
   },
   'fr-FR': {
-    graphics: 'Graphismes', quality: 'Qualité', auto: 'Automatique (détectée : {tier})',
+    graphics: 'Graphismes', quality: 'Qualité', level: 'Niveau {n}', auto: 'Automatique (détectée : {tier})',
     low: 'Basse', balanced: 'Équilibrée', high: 'Haute', ultra: 'Ultra', medium: 'Moyenne',
     renderScale: 'Échelle de rendu', adaptive: 'Résolution adaptative', showFps: 'Afficher les images par seconde',
     fromPreset: 'Selon le préréglage ({tier})', postFailed: 'Le post-traitement est indisponible sur cet appareil ; rendu sans effets.',
@@ -66,7 +66,7 @@ const STR = {
     bloomOn: 'halo', reflectionsOn: 'reflets', noAA: 'sans anticrénelage', gpuUnknown: 'GPU inconnu',
   },
   'fr-CA': {
-    graphics: 'Graphiques', quality: 'Qualité', auto: 'Automatique (détectée : {tier})',
+    graphics: 'Graphiques', quality: 'Qualité', level: 'Niveau {n}', auto: 'Automatique (détectée : {tier})',
     low: 'Basse', balanced: 'Équilibrée', high: 'Haute', ultra: 'Ultra', medium: 'Moyenne',
     renderScale: 'Échelle de rendu', adaptive: 'Résolution adaptative', showFps: 'Afficher la fréquence d’images',
     fromPreset: 'Selon le préréglage ({tier})', postFailed: 'Le post-traitement n’est pas offert sur cet appareil; rendu sans effets.',
@@ -78,7 +78,7 @@ const STR = {
     bloomOn: 'halo', reflectionsOn: 'reflets', noAA: 'sans anticrénelage', gpuUnknown: 'GPU inconnu',
   },
   'pt-BR': {
-    graphics: 'Gráficos', quality: 'Qualidade', auto: 'Automática (detectada: {tier})',
+    graphics: 'Gráficos', quality: 'Qualidade', level: 'Nível {n}', auto: 'Automática (detectada: {tier})',
     low: 'Baixa', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra', medium: 'Média',
     renderScale: 'Escala de renderização', adaptive: 'Resolução adaptativa', showFps: 'Mostrar taxa de quadros',
     fromPreset: 'Da predefinição ({tier})', postFailed: 'O pós-processamento não está disponível neste dispositivo; renderizando sem efeitos.',
@@ -90,7 +90,7 @@ const STR = {
     bloomOn: 'brilho', reflectionsOn: 'reflexos', noAA: 'sem antisserrilhamento', gpuUnknown: 'GPU desconhecida',
   },
   'it-IT': {
-    graphics: 'Grafica', quality: 'Qualità', auto: 'Automatica (rilevata: {tier})',
+    graphics: 'Grafica', quality: 'Qualità', level: 'Livello {n}', auto: 'Automatica (rilevata: {tier})',
     low: 'Bassa', balanced: 'Bilanciata', high: 'Alta', ultra: 'Ultra', medium: 'Media',
     renderScale: 'Scala di rendering', adaptive: 'Risoluzione adattiva', showFps: 'Mostra frame rate',
     fromPreset: 'Dal preset ({tier})', postFailed: 'La post-elaborazione non è disponibile su questo dispositivo: rendering senza effetti.',

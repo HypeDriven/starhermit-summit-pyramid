@@ -80,7 +80,7 @@ export function initGraphicsPanel({ settings, renderer, persist, lang }) {
       return;
     }
     const info = renderer.graphicsInfo(t);
-    $('gfx-summary').textContent = (info.gpu || t('gpuUnknown')) + ' · ' + info.summary;
+    $('gfx-summary').textContent = [info.gpu || t('gpuUnknown'), info.level != null ? t('level', { n: info.level }) : null, info.summary].filter(Boolean).join(' · ');
     note.textContent = t('postFailed');
     note.hidden = !info.postFailed;
   }

@@ -13,7 +13,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { detectPreset, describe, resolve, SHADOW_MAP, PARTICLE_COUNT, STAR_COUNT } from './gfx.js';
+import { detectLevel, presetForLevel, describe, resolve, SHADOW_MAP, starCount, particleCount } from './gfx.js';
 
 const CARD_W = 1, CARD_H = 1.42, CARD_T = 0.03;
 const CARD_TILT = 0.42;
@@ -43,6 +43,15 @@ const RANK_LABEL = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q',
 
 /* Dispose geometry + materials of a mesh. Textures are shared via texCache and
    shared geometries are flagged, so neither is disposed here. */
+// Run a post pass at a fraction of the frame: EffectComposer.addPass/setSize hand every pass the full
+// frame size, so the pass's own setSize applies the budget's scale (half-res bloom/GTAO below Ultra).
+function atScale(pass, k) {
+  if (!(k < 1)) return pass;
+  const setSize = pass.setSize.bind(pass);
+  pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+  return pass;
+}
+
 function disposeMesh(m) {
   if (!m) return;
   m.traverse(o => {
@@ -156,8 +165,15 @@ export class Renderer3D {
     this.gpu = this._gpuName();
     const mobile = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches &&
       !matchMedia('(any-pointer: fine)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '');
-    this.detected = detectPreset(this.gpu, mobile);
-    this.q = resolve(settings.gfx, this.detected);
+    // StarHermit hardware level (app/gpu-level.js): renderer string + device facts (phone/tablet, cores, memory).
+    let sys = { mobile, webgl2: !!this.renderer.capabilities.isWebGL2 };
+    try {
+      const SG = globalThis.StarHermitGpu;
+      if (SG) { const d = SG.detectSystem(); sys = { ...sys, mobile: mobile || d.mobile, touch: d.touch, screen: d.screen, cores: d.cores, memoryGb: d.memoryGb, astc: d.astc }; }
+    } catch (e) { /* defaults */ }
+    this.gpuLevel = detectLevel(this.gpu, sys);
+    this.detected = presetForLevel(this.gpuLevel);
+    this.q = resolve(settings.gfx, this.detected, this.gpuLevel);
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 220);
     this.resetCamera();
@@ -194,7 +210,7 @@ export class Renderer3D {
   setGraphics(saved, initial) {
     if (!this.ok) return;
     const prev = this.q;
-    const g = resolve(saved, this.detected);
+    const g = resolve(saved, this.detected, this.gpuLevel);
     this.q = g;
     const size = SHADOW_MAP[g.shadows];
     this.renderer.shadowMap.enabled = size > 0;
@@ -212,9 +228,12 @@ export class Renderer3D {
     this._fpsVisible(g.showFps);
     if (this.canvasEl()) this.canvasEl().dataset.gfxPreset = g.preset;
     if (!initial && prev && this.theme) {
-      const envChanged = prev.detail !== g.detail || prev.background !== g.background || prev.particles !== g.particles;
+      // The preset budget's shading, textures, mesh detail and counts are baked into the meshes: rebuild.
+      const B = (q, keys) => keys.map((k) => q.budget[k]).join('|');
+      const envKeys = ['material', 'sand', 'seg', 'stars', 'particles'], boardKeys = ['material', 'card'];
+      const envChanged = prev.detail !== g.detail || prev.background !== g.background || prev.particles !== g.particles || B(prev, envKeys) !== B(g, envKeys);
       if (envChanged) this.buildEnv(this.theme, this.envSeed);
-      if (prev.detail !== g.detail && this.lastState) {
+      if ((prev.detail !== g.detail || B(prev, boardKeys) !== B(g, boardKeys)) && this.lastState) {
         this.buildBoard(this.lastState, this.theme);
         this.syncState(this.lastState, this.lastSelection || []);
       }
@@ -234,6 +253,7 @@ export class Renderer3D {
     const px = [Math.round(this.size[0] * this.pixelRatio), Math.round(this.size[1] * this.pixelRatio)];
     return {
       gpu: this.gpu || '',
+      level: this.gpuLevel,
       detected: this.detected,
       resolved: this.q,
       summary: describe(this.q, px, t),
@@ -279,7 +299,7 @@ export class Renderer3D {
   _postKey(w, h) {
     const g = this.q;
     // size changes resize the chain in place (no shader recompiles); only effect changes rebuild it
-    return g.post && w && h ? [g.ao, g.bloom, g.grade, g.antialias].join('|') : 'none';
+    return g.post && w && h ? [g.ao, g.bloom, g.grade, g.antialias, g.budget.bloomRes, g.budget.aoRes].join('|') : 'none';
   }
 
   _buildPost(w, h) {
@@ -303,11 +323,11 @@ export class Renderer3D {
         ao.blendIntensity = 0.75;
         ao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: g.ao === 'high' ? 16 : 8 });
         ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: g.ao === 'high' ? 6 : 4, rings: 2, samples: g.ao === 'high' ? 16 : 8 });
-        composer.addPass(ao);
+        composer.addPass(atScale(ao, g.budget.aoRes));
       }
       if (g.bloom === 'on') {
         // high threshold: only the moon, fire, embers and the selection ring glow
-        composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.42, 0.9));
+        composer.addPass(atScale(new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.42, 0.9), g.budget.bloomRes));
       }
       composer.addPass(new OutputPass());
       if (g.grade === 'on') composer.addPass(new ShaderPass(GradeShader));
@@ -368,9 +388,25 @@ export class Renderer3D {
     this.scene.add(this.accentLight);
   }
 
+  // Lit material per preset budget: Lambert (Low), Standard (Balanced) or, for surfaces given a clear
+  // coat, Physical (High, Ultra). PBR-only parameters are dropped for Lambert.
+  _mat(params, coat) {
+    const tier = this.q.budget.material;
+    if (tier === 'lambert') {
+      const { roughness, metalness, envMapIntensity, ...p } = params;
+      return new THREE.MeshLambertMaterial(p);
+    }
+    if (coat && tier === 'physical') return new THREE.MeshPhysicalMaterial({ ...params, ...coat });
+    return new THREE.MeshStandardMaterial(params);
+  }
+
+  // Curved-mesh segment count at the preset budget's multiplier.
+  _seg(n, min = 6) { return Math.max(min, Math.round(n * this.q.budget.seg)); }
+
   _sandTexture() {
-    if (this.texCache.has('sand')) return this.texCache.get('sand');
-    const n = 256, cv = document.createElement('canvas');
+    const n = this.q.budget.sand, tkey = 'sand:' + n; // ripple texture at the preset's size
+    if (this.texCache.has(tkey)) return this.texCache.get(tkey);
+    const cv = document.createElement('canvas');
     cv.width = cv.height = n;
     const g = cv.getContext('2d');
     const img = g.createImageData(n, n);
@@ -391,7 +427,7 @@ export class Renderer3D {
     tex.repeat.set(34, 22);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    this.texCache.set('sand', tex);
+    this.texCache.set(tkey, tex);
     return tex;
   }
 
@@ -429,8 +465,8 @@ export class Renderer3D {
 
     // sand floor
     const sandMat = detailed
-      ? new THREE.MeshStandardMaterial({ color: theme.sand, map: this._sandTexture(), bumpMap: this._sandTexture(), bumpScale: 0.12, roughness: 0.96, metalness: 0 })
-      : new THREE.MeshStandardMaterial({ color: theme.sand, roughness: 1, metalness: 0 });
+      ? this._mat({ color: theme.sand, map: this._sandTexture(), bumpMap: this._sandTexture(), bumpScale: 0.12, roughness: 0.96, metalness: 0 })
+      : this._mat({ color: theme.sand, roughness: 1, metalness: 0 });
     const sand = new THREE.Mesh(new THREE.PlaneGeometry(120, 120, 1, 1), sandMat);
     sand.rotation.x = -Math.PI / 2;
     sand.receiveShadow = true;
@@ -440,9 +476,9 @@ export class Renderer3D {
     const duneCount = detailed ? 12 : 7;
     const duneColor = new THREE.Color(theme.sand).multiplyScalar(0.75);
     const duneMat = detailed
-      ? new THREE.MeshStandardMaterial({ color: duneColor, map: this._sandTexture(), roughness: 1 })
-      : new THREE.MeshStandardMaterial({ color: duneColor, roughness: 1, flatShading: true });
-    const duneGeo = detailed ? new THREE.SphereGeometry(1, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2) : null;
+      ? this._mat({ color: duneColor, map: this._sandTexture(), roughness: 1 })
+      : this._mat({ color: duneColor, roughness: 1, flatShading: true });
+    const duneGeo = detailed ? new THREE.SphereGeometry(1, this._seg(28), this._seg(12, 6), 0, Math.PI * 2, 0, Math.PI / 2) : null;
     for (let i = 0; i < duneCount; i++) {
       const a = (i / duneCount) * Math.PI * 2 + rnd() * 0.4;
       const dist = 22 + rnd() * 18;
@@ -465,7 +501,7 @@ export class Renderer3D {
     const moonPos = new THREE.Vector3(-18, 20, -50);
     if (detailed) {
       // sky dome: horizon band matched to the fog, glow toward the moon
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), new THREE.ShaderMaterial({
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(100, this._seg(32, 16), this._seg(16, 8)), new THREE.ShaderMaterial({
         uniforms: {
           uSky: { value: sky.clone() }, uHorizon: { value: fogColor.clone() },
           uGround: { value: new THREE.Color(theme.sand).multiplyScalar(0.12) },
@@ -484,7 +520,7 @@ export class Renderer3D {
     }
 
     // star canopy
-    const n = STAR_COUNT[q.background];
+    const n = starCount(q);
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const t = rnd() * Math.PI * 2, p = Math.acos(rnd() * 0.85);
@@ -521,7 +557,7 @@ export class Renderer3D {
 
     // moon disc (+ halo when detailed)
     const moonMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xe8ecf8).multiplyScalar(detailed ? 2.2 : 1), fog: false });
-    const moon = new THREE.Mesh(new THREE.CircleGeometry(3, 40), moonMat);
+    const moon = new THREE.Mesh(new THREE.CircleGeometry(3, this._seg(40, 24)), moonMat);
     moon.position.copy(moonPos);
     this.envGroup.add(moon);
     if (detailed) {
@@ -537,7 +573,7 @@ export class Renderer3D {
     const fireGroup = new THREE.Group();
     fireGroup.position.set(FIRE_POS[0], 0, FIRE_POS[2]);
     if (detailed) {
-      const stoneMat = new THREE.MeshStandardMaterial({ color: 0x3a3430, roughness: 0.9, flatShading: true });
+      const stoneMat = this._mat({ color: 0x3a3430, roughness: 0.9, flatShading: true });
       for (let i = 0; i < 9; i++) {
         const a = (i / 9) * Math.PI * 2;
         const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.13 + rnd() * 0.05, 0), stoneMat);
@@ -546,7 +582,7 @@ export class Renderer3D {
         s.castShadow = true; s.receiveShadow = true;
         fireGroup.add(s);
       }
-      const logMat = new THREE.MeshStandardMaterial({ color: 0x4a2e1c, roughness: 0.85 });
+      const logMat = this._mat({ color: 0x4a2e1c, roughness: 0.85 });
       for (let i = 0; i < 3; i++) {
         const log = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.8, 7), logMat);
         log.rotation.set(Math.PI / 2 - 0.25, (i / 3) * Math.PI, 0);
@@ -569,7 +605,7 @@ export class Renderer3D {
       fireGroup.add(glow);
     } else {
       const fire = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 6),
-        new THREE.MeshStandardMaterial({ color: 0xff7043, emissive: 0xff5010, emissiveIntensity: 2 }));
+        this._mat({ color: 0xff7043, emissive: 0xff5010, emissiveIntensity: 2 }));
       fire.position.y = 0.4;
       fireGroup.add(fire);
     }
@@ -581,7 +617,7 @@ export class Renderer3D {
   /* ---- particles: embers from the fire, sand motes over the board, pair sparks ---- */
 
   _buildParticles(theme) {
-    const count = PARTICLE_COUNT[this.q.particles];
+    const count = particleCount(this.q);
     if (!count) { this.fx = null; return; }
     const total = count + SPARK_SLOTS;
     const geo = new THREE.BufferGeometry();
@@ -676,8 +712,8 @@ export class Renderer3D {
   /* ---- card textures ---- */
 
   cardTexture(card, cvd) {
-    const hi = this.q.detail === 'detailed';
-    const key = 'c' + card + ':' + cvd + (hi ? ':hi' : '');
+    const hi = this.q.detail === 'detailed', px = this.q.budget.card;
+    const key = 'c' + card + ':' + cvd + (hi ? ':hi' + px : '');
     if (this.texCache.has(key)) return this.texCache.get(key);
     const red = card >= 13 && card < 39;
     let color = red ? '#b02020' : '#1c1c2a';
@@ -699,8 +735,9 @@ export class Renderer3D {
       g.font = 'bold 18px system-ui';
       g.textAlign = 'left'; g.fillText(rank, 10, 26);
     } else {
-      const W = 256, H = 364;
-      cv.width = W; cv.height = H;
+      const W = 256, H = 364; // authored size, drawn into the preset's card-texture budget
+      cv.width = px; cv.height = Math.round(H * px / W);
+      g.scale(px / W, px / W);
       // warm paper with a soft centre light and fine grain
       const bg = g.createRadialGradient(W / 2, H * 0.42, 20, W / 2, H / 2, H * 0.7);
       bg.addColorStop(0, '#fbf8ee'); bg.addColorStop(1, '#ebe4d2');
@@ -736,8 +773,8 @@ export class Renderer3D {
   }
 
   backTexture(theme) {
-    const hi = this.q.detail === 'detailed';
-    const key = 'back:' + theme.id + (hi ? ':hi' : '');
+    const hi = this.q.detail === 'detailed', px = this.q.budget.card;
+    const key = 'back:' + theme.id + (hi ? ':hi' + px : '');
     if (this.texCache.has(key)) return this.texCache.get(key);
     const cv = document.createElement('canvas');
     const g = cv.getContext('2d');
@@ -753,8 +790,9 @@ export class Renderer3D {
         g.stroke();
       }
     } else {
-      const W = 256, H = 364;
-      cv.width = W; cv.height = H;
+      const W = 256, H = 364; // authored size, drawn into the preset's card-texture budget
+      cv.width = px; cv.height = Math.round(H * px / W);
+      g.scale(px / W, px / W);
       const c = new THREE.Color(theme.cardBack);
       const top = '#' + c.clone().multiplyScalar(1.25).getHexString(), bot = '#' + c.clone().multiplyScalar(0.7).getHexString();
       const bg = g.createLinearGradient(0, 0, 0, H);
@@ -814,25 +852,21 @@ export class Renderer3D {
 
   makeCardMesh(card, theme) {
     if (this.q.detail === 'detailed') {
-      const edge = new THREE.MeshStandardMaterial({ color: 0xe6dfcc, roughness: 0.7 });
+      const edge = this._mat({ color: 0xe6dfcc, roughness: 0.7 });
       const faceMap = card == null ? this.backTexture(theme) : this.cardTexture(card, this.settings.cvd);
-      const face = new THREE.MeshPhysicalMaterial({
-        map: faceMap, roughness: 0.55, clearcoat: 0.45, clearcoatRoughness: 0.35, envMapIntensity: 0.8,
-      });
-      const back = new THREE.MeshPhysicalMaterial({
-        map: this.backTexture(theme), roughness: 0.45, clearcoat: 0.8, clearcoatRoughness: 0.2, envMapIntensity: 1,
-      });
+      const face = this._mat({ map: faceMap, roughness: 0.55, envMapIntensity: 0.8 }, { clearcoat: 0.45, clearcoatRoughness: 0.35 });
+      const back = this._mat({ map: this.backTexture(theme), roughness: 0.45, envMapIntensity: 1 }, { clearcoat: 0.8, clearcoatRoughness: 0.2 });
       const m = new THREE.Mesh(this._roundedCardGeometry(), [face, back, edge]);
       m.castShadow = true; m.receiveShadow = true;
       return m;
     }
     // BoxGeometry(w, t, h): the card-sized faces are ±y (material slots 2/3),
     // the thin edges are ±x/±z. Face art goes on +y, the back motif on -y.
-    const edge = new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.8 });
+    const edge = this._mat({ color: 0xd8d2c0, roughness: 0.8 });
     const face = card == null
-      ? new THREE.MeshStandardMaterial({ map: this.backTexture(theme), roughness: 0.7 })
-      : new THREE.MeshStandardMaterial({ map: this.cardTexture(card, this.settings.cvd), roughness: 0.7 });
-    const back = new THREE.MeshStandardMaterial({ map: this.backTexture(theme), roughness: 0.7 });
+      ? this._mat({ map: this.backTexture(theme), roughness: 0.7 })
+      : this._mat({ map: this.cardTexture(card, this.settings.cvd), roughness: 0.7 });
+    const back = this._mat({ map: this.backTexture(theme), roughness: 0.7 });
     const mats = [edge, edge, face, back, edge, edge];
     const m = new THREE.Mesh(new THREE.BoxGeometry(CARD_W, CARD_T, CARD_H), mats);
     m.castShadow = true; m.receiveShadow = true;

@@ -233,6 +233,7 @@ async function graphicsChecks(page, name, ok) {
   const shadowFrom = await page.locator('#gfx-shadows option[value="preset"]').textContent();
   if (!/Medium/.test(shadowFrom)) throw new Error('shadows "From preset" label wrong: ' + shadowFrom);
   if (!/bloom/.test(await page.textContent('#gfx-summary'))) throw new Error('High summary should list bloom');
+  if (!/ · Level 0 · /.test(await page.textContent('#gfx-summary'))) throw new Error(`summary lacks the hardware level: ${await page.textContent('#gfx-summary')}`);
   await page.locator('#gfx-bloom').scrollIntoViewIfNeeded();
   await page.selectOption('#gfx-bloom', 'off');
   await page.waitForFunction(() => !/bloom/.test(document.getElementById('gfx-summary').textContent) &&
