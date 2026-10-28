@@ -1,5 +1,14 @@
 # Known Issues — Summit Pyramid
 
+## Engine port (1.21.0, minor 23)
+
+- Ported from the three.js r169 browser build; rules, content and scoring
+  unchanged. Checks: `npm test` (unit + native play scripts) and
+  `npm run test:browser` pass.
+- Guests' old localStorage progress does not migrate (cloud saves do).
+- The memoized solver (tools/gen-plays.mjs) finds no full clear for the
+  Forty Moves, One Pass and Speed Ascent challenge deals; kept as content.
+
 QA pass. Review combines static analysis of the pure rules engine
 (`rules.js`) with the game's own unit suite (`test.js`), the headless-Chrome
 end-to-end playthrough (`tests/e2e.mjs`), and an exhaustive memoized search of
