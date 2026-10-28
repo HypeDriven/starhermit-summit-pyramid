@@ -1,7 +1,9 @@
 /* Summit Pyramid — player-facing names for rules.js / content.js data.
  * The rules and content stay English (they feed seeds, saves and best-score
  * keys); these helpers translate at display time. */
-import { T } from './i18n.js';
+import '../rules.js';
+import '../content.js';
+import { T } from './lang.js';
 
 const R = globalThis.SummitRules;
 const C = globalThis.SummitContent;

@@ -1,18 +1,19 @@
-// Summit Pyramid — localization coverage: every English key the code and the
-// content data show to players exists in all nine locales (en-GB → en-US,
-// es-ES → es-419, fr-CA → fr-FR inherit), placeholders survive translation,
-// and the locale follows sh-language.js and switches live.
+// Summit Pyramid — localization coverage: every English key the engine
+// client (native/*.ts), the display names (app/loc.js) and the content show
+// exists in all nine locales (en-GB → en-US, es-ES → es-419, fr-CA → fr-FR
+// inherit), placeholders survive translation, no table row is unused, and
+// the locale follows the tag the runtime reports (app/lang.js setLang).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { usedKeys } from './i18n-keys.mjs';
 
-import { read, usedKeys } from './i18n-keys.mjs';
-
-const { TABLES, LOCALES, T, currentLang } = await import('../app/i18n.js');
+const { TABLES, LOCALES, T, setLang, pickLocale, currentLang } = await import('../app/lang.js');
+const { shText } = await import('../app/sh-i18n.js');
 const PARENT = { 'en-GB': 'en-US', 'es-ES': 'es-419', 'fr-CA': 'fr-FR' };
 const has = (l, k) => { for (let x = l; x; x = PARENT[x]) if (TABLES[x] && Object.hasOwn(TABLES[x], k)) return TABLES[x][k]; return undefined; };
 const holes = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
 
-test('every used key is translated in all nine locales with its placeholders', async () => {
+test('every used key is translated in all nine locales with its placeholders', () => {
   const keys = usedKeys();
   assert.ok(keys.size > 150, `found ${keys.size} keys`);
   const missing = [];
@@ -26,50 +27,26 @@ test('every used key is translated in all nine locales with its placeholders', a
   assert.deepEqual(missing, []);
 });
 
-test('tables carry no unused rows (catches typos in keys)', async () => {
+test('tables carry no unused rows (catches typos in keys)', () => {
   const keys = usedKeys();
-  const unused = Object.keys(TABLES['en-US']).filter((k) => !keys.has(k));
-  assert.deepEqual(unused, []);
+  assert.deepEqual(Object.keys(TABLES['en-US']).filter((k) => !keys.has(k)), []);
 });
 
-test('T fills placeholders and falls back to English outside the browser', () => {
-  assert.equal(currentLang(), 'en-US');
+test('T fills placeholders; the locale follows the runtime tag and its fallbacks', () => {
+  setLang('en-US');
   assert.equal(T('Waste recycled. {n} left.', { n: 2 }), 'Waste recycled. 2 left.');
   assert.equal(T('No such key'), 'No such key');
-});
-
-test('index.html loads sh-language.js before the game module', () => {
-  const html = read('index.html');
-  const lang = html.indexOf('src="sh-language.js"');
-  assert.ok(lang > 0 && lang < html.indexOf('src="app/main.js"'));
-});
-
-test('the locale follows sh-language.js (device → choice) and switches live', async () => {
-  const store = new Map();
-  const win = { navigator: { languages: ['de-AT', 'en'] }, localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) } };
-  const mod = { exports: {} };
-  new Function('module', 'window', read('sh-language.js'))(mod, win);
-  const doc = { documentElement: {}, events: [], addEventListener() {}, dispatchEvent(e) { this.events.push(e.detail.lang); } };
-  globalThis.window = { StarHermitLanguage: mod.exports, location: { search: '' } };
-  globalThis.document = doc;
-  try {
-    const I = await import('../app/i18n.js?live');
-    const seen = [];
-    I.onLanguage((l) => seen.push(l));
-    assert.equal(I.currentLang(), 'de-DE');
-    assert.equal(doc.documentElement.lang, 'de-DE');
-    assert.equal(I.T('Journey'), 'Reise');
-    I.language.setChoice('fr-CA');
-    assert.equal(I.currentLang(), 'fr-CA');
-    assert.deepEqual(seen, ['fr-CA']);
-    assert.deepEqual(doc.events, ['de-DE', 'fr-CA']);
-    assert.equal(I.T('You win. Score {n}', { n: 5 }), 'Gagné. Pointage 5', 'fr-CA override');
-    assert.equal(I.T('Journey'), 'Parcours', 'fr-CA inherits fr-FR');
-    assert.equal(store.get('summit-pyramid.language.guest'), 'fr-CA');
-    I.language.setChoice('auto');
-    assert.equal(I.currentLang(), 'de-DE');
-  } finally {
-    delete globalThis.window;
-    delete globalThis.document;
-  }
+  assert.equal(pickLocale('de-AT'), 'de-DE');
+  assert.equal(pickLocale('en-AU'), 'en-GB');
+  assert.equal(pickLocale('es-MX'), 'es-419');
+  assert.equal(pickLocale('fr-CA'), 'fr-CA');
+  assert.equal(pickLocale('ja-JP'), 'en-US');
+  setLang('fr-CA');
+  assert.equal(currentLang(), 'fr-CA');
+  assert.equal(T('You win. Score {n}', { n: 5 }), 'Gagné. Pointage 5', 'fr-CA override');
+  assert.equal(T('Journey'), 'Parcours', 'fr-CA inherits fr-FR');
+  assert.equal(shText('lbPosted'), 'Pointage envoyé au classement.');
+  setLang('de-DE');
+  assert.equal(T('Journey'), 'Reise');
+  setLang('en-US');
 });

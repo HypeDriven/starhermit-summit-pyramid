@@ -1,0 +1,119 @@
+/* Summit Pyramid — the browser build's index.html <style> rewritten
+   class-based for the engine's UI (`npm run css` converts it into
+   assets/ui-style.json). Element selectors, ids, html.hc / html.lg-text and
+   @media do not convert: every widget names its classes, the breakpoints are
+   layouts picked in native/screens.ts, high contrast is a token set
+   native/style.ts applies, larger text is the runtime's text scale and the
+   left-handed tray the game's option. */
+
+:root {
+  --bg: #0b1026; --panel: #141b33; --panel2: #1b2340; --text: #e8ecf8; --muted: #9aa4c4;
+  --accent: #ffb35c; --good: #6fe3a5; --bad: #ff7a7a; --focus: #7df0ff;
+  --edge: #2a3355; --btn-edge: #3a4568; --ink: #1a1208;
+}
+
+* { box-sizing: border-box; }
+
+/* ------------------------------------------------------------- text */
+.text { color: var(--text); font-size: 16px; }
+.muted { color: var(--muted); font-size: 16px; }
+.small { color: var(--muted); font-size: 13.6px; }
+.good { color: var(--good); font-size: 16px; }
+.good-b { color: var(--good); font-size: 16px; font-weight: 700; }
+.bad { color: var(--bad); font-size: 16px; }
+.h1 { color: var(--text); font-size: 32px; font-weight: 700; }
+.h2 { color: var(--text); font-size: 24px; font-weight: 700; }
+.h2-good { color: var(--good); font-size: 24px; font-weight: 700; }
+.h2-bad { color: var(--bad); font-size: 24px; font-weight: 700; }
+.h3 { color: var(--text); font-size: 18.7px; font-weight: 700; }
+.tut-h { color: var(--text); font-size: 16px; font-weight: 700; }
+.objective { color: var(--text); font-size: 16px; font-weight: 600; }
+.hud-k { color: var(--text); font-size: 16px; }
+.hud-v { color: var(--text); font-size: 16px; font-weight: 700; }
+.hud-dim { color: var(--muted); font-size: 16px; }
+.hud-dim-v { color: var(--muted); font-size: 16px; font-weight: 700; }
+.pile-k { color: var(--muted); font-size: 13.6px; text-align: center; }
+.pile-v { color: var(--text); font-size: 16.3px; font-weight: 700; text-align: center; }
+.pile-n { color: var(--muted); font-size: 13.6px; text-align: center; }
+.caption { color: var(--muted); font-size: 16px; }
+.toast-text { color: var(--text); font-size: 16px; }
+.td { color: var(--text); font-size: 15.2px; }
+.td-num { color: var(--text); font-size: 15.2px; text-align: end; }
+.td-muted { color: var(--muted); font-size: 15.2px; }
+.btn-dim { color: var(--muted); font-size: 16px; }
+.btn-label { color: var(--text); font-size: 16px; }
+.wrap { color: var(--text); font-size: 16px; text-align: center; }
+.wrap-ink { color: var(--ink); font-size: 16px; font-weight: 600; text-align: center; }
+
+/* ------------------------------------------------------------- surfaces */
+.bar { background: var(--panel); border-radius: 0; }
+.bar-line { background: var(--edge); border-radius: 0; }
+.panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 19.2px 22.4px; }
+.tut-panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 11.2px 16px; }
+.toast { background: var(--panel2); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 16px; }
+.tr { border-bottom: 1px solid var(--edge); border-radius: 0; padding: 4px 8px; }
+.scrim { background: rgba(5, 8, 20, 0.82); border-radius: 0; }
+.scrim-light { background: rgba(5, 8, 20, 0.5); border-radius: 0; }
+
+/* ------------------------------------------------------------- buttons */
+.btn {
+  min-height: 44px; padding: 8px 14.4px;
+  background: var(--panel2); border: 1px solid var(--btn-edge); border-radius: 8px;
+  color: var(--text); font-size: 16px; text-align: center;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn:disabled { opacity: 0.45; }
+.btn-primary {
+  min-height: 44px; padding: 8px 14.4px;
+  background: var(--accent); border: 1px solid var(--accent); border-radius: 8px;
+  color: var(--ink); font-size: 16px; font-weight: 600; text-align: center;
+}
+.btn-primary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-primary:disabled { opacity: 0.45; }
+.btn-tray {
+  min-height: 40px; padding: 5.6px 8.8px;
+  background: var(--panel2); border: 1px solid var(--btn-edge); border-radius: 8px;
+  color: var(--text); font-size: 16px; text-align: center;
+}
+.btn-tray:hover { border-color: var(--accent); }
+.btn-tray:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-tray:disabled { opacity: 0.45; }
+.btn-stage {
+  min-height: 52px; padding: 8px 4px;
+  background: var(--panel2); border: 1px solid var(--btn-edge); border-radius: 8px;
+  color: var(--text); font-size: 13.6px; text-align: center;
+}
+.btn-stage:hover { border-color: var(--accent); }
+.btn-stage:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn-stage:disabled { opacity: 0.35; }
+.btn-stage-done {
+  min-height: 52px; padding: 8px 4px;
+  background: var(--panel2); border: 1px solid var(--good); border-radius: 8px;
+  color: var(--text); font-size: 13.6px; text-align: center;
+}
+.btn-stage-done:hover { border-color: var(--accent); }
+.btn-stage-done:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* the 2D board (screen-reader mode) */
+.card-btn {
+  min-height: 0; padding: 0;
+  background: #f4f0e4; border: 1px solid #4a5578; border-radius: 6px;
+  color: #222222; font-size: 12px; text-align: center;
+}
+.card-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.card-btn:disabled { opacity: 0.35; }
+.card-btn-legal {
+  min-height: 0; padding: 0;
+  background: #f4f0e4; border: 1px solid var(--good); border-radius: 6px;
+  color: #222222; font-size: 12px; text-align: center;
+}
+.card-btn-legal:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.card-btn-sel {
+  min-height: 0; padding: 0;
+  background: #f4f0e4; border: 3px solid var(--focus); border-radius: 6px;
+  color: #222222; font-size: 12px; text-align: center;
+}
+.card-btn-sel:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.card-red { color: #a02020; font-size: 12px; }
+.card-black { color: #222222; font-size: 12px; }
