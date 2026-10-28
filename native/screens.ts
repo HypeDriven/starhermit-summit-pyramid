@@ -342,7 +342,7 @@ function domBoard(L: Layout, canvas: { x: number; y: number; w: number; h: numbe
   const st = g.state;
   const legal = R.legalActions(st);
   const cw = L.compact ? 38 : 44, ch = L.compact ? 52 : 60;
-  paint("board-dom-bg", canvas.x, canvas.y, canvas.w, canvas.h, "scrim");
+  paint("board-dom-bg", canvas.x, canvas.y, canvas.w, canvas.h, "page");
   const total = 8 * ch + 7 * 2;
   ui.place("board-dom", { anchor: "top-start", x: canvas.x, y: canvas.y + Math.max(8, (canvas.h - total) / 2) }, () => {
     ui.column("board-dom-col", () => {

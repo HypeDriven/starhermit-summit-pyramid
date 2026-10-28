@@ -52,6 +52,7 @@
 .tut-panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 11.2px 16px; }
 .toast { background: var(--panel2); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 16px; }
 .tr { border-bottom: 1px solid var(--edge); border-radius: 0; padding: 4px 8px; }
+.page { background: var(--bg); border-radius: 0; }
 .scrim { background: rgba(5, 8, 20, 0.82); border-radius: 0; }
 .scrim-light { background: rgba(5, 8, 20, 0.5); border-radius: 0; }
 

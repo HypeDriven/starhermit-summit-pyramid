@@ -263,6 +263,10 @@
         "start": 8
       }
     },
+    ".page": {
+      "background": "$bg",
+      "radius": 0
+    },
     ".scrim": {
       "background": "#050814d1",
       "radius": 0
