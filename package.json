@@ -1,15 +1,19 @@
 {
   "name": "summit-pyramid",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Summit Pyramid - card pairing puzzle game (browser)",
+  "description": "Summit Pyramid - card pairing puzzle game on the StarHermit engine",
   "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
-    "test": "node test.js && node --test tests/gfx.test.mjs tests/platform.test.mjs tests/i18n.test.mjs",
-    "test:e2e": "node tests/e2e.mjs"
-  },
-  "dependencies": {
-    "three": "^0.169.0"
+    "test": "npm run test:unit && npm run test:native",
+    "test:unit": "node test.js && node --test tests/save.test.mjs tests/i18n.test.mjs tests/plays.test.mjs",
+    "test:native": "node tests/native.mjs",
+    "test:browser": "node tools/browser-play.mjs .",
+    "start": "node server.js",
+    "package": "node tools/package-web.mjs",
+    "css": "node tools/css.mjs",
+    "plays": "node tools/gen-plays.mjs",
+    "sand": "node tools/bake-sand.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"

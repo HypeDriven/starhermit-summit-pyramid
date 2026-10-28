@@ -1,0 +1,87 @@
+# The menus and options on a desktop window: a lesson skipped, the modes,
+# How to play, Settings (2D board on), the leaderboard (local bests for a
+# guest), Practice on seed 4242 played on the 2D board (the hint, a pair,
+# a draw, undo), pause and resume by Escape, Restart deal, Leave round,
+# then the Daily started and left.
+# viewport 1280x800@1
+until 600 Summit Pyramid
+frames 30
+click =How to play
+until 300 Pair to 14
+frames 10
+save sp-help
+click =Back
+until 300 Leaderboard
+frames 10
+click =Leaderboard
+until 300 Personal bests (local)
+frames 10
+click =Back
+until 300 Settings
+frames 10
+click =Settings
+until 300 Color-vision palette
+frames 10
+click =2D board (screen-reader mode)
+frames 10
+save sp-settings
+click =Back
+until 300 Play
+frames 10
+click =Play
+until 600 1/5
+frames 20
+click =Skip lesson
+until 300 2/5
+frames 10
+click =Quit tutorial
+until 300 Choose a mode
+frames 10
+click Practice — pick a difficulty
+until 300 Seed (optional)
+frames 10
+click random
+type 4242
+frames 5
+click Ridge
+until 300 Practice — Ridge
+frames 60
+click =Hint
+until 300 totals 14
+frames 10
+save sp-2d-board
+click =6 of Hearts, exposed
+frames 30
+expect 540
+click =Draw
+frames 10
+click =Undo
+frames 10
+key Escape 1
+until 300 Paused
+frames 10
+save sp-pause
+key Escape 1
+frames 20
+key Escape 1
+until 300 Paused
+frames 10
+click =Restart deal
+until 300 Practice — Ridge
+frames 20
+expect 440
+key Escape 1
+until 300 Paused
+frames 10
+click =Leave round
+until 300 Choose a mode
+frames 10
+click Daily — one shared seed
+until 300 Daily —
+frames 30
+save sp-daily
+click =Pause
+until 300 Paused
+frames 10
+click =Leave round
+until 300 Choose a mode
