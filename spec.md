@@ -3,7 +3,7 @@
 A single-player pyramid solitaire on a desert night: remove pairs of uncovered
 cards that total 14 and clear the 28-card pyramid before the stock runs out.
 It is a StarHermit engine script game (TypeScript on the host API), pinned to
-engine **1.24.0** with `engine.minor=23`, played natively by the StarHermit
+engine **1.27.0** with `engine.minor=29`, played natively by the StarHermit
 client and in browsers by the engine's web runtime from one package.
 
 ## Rules (rules.js, unchanged)
@@ -102,7 +102,7 @@ and bloom, MSAA. Stars and particles scale within a tier by the level
 (≤ 1.5×). Lights, shadows (the key light's shadow box ±6.2, near 2, far 32,
 bias −0.0006, normal bias 0.02, radius 3) and the environment
 (`RoomEnvironment(renderer)`, sigma 0.04, `scene.environment` at intensity
-0.24) are the three.js r169 page's own values (minor 23 is r185 parity).
+0.24) are the three.js r169 page's own values (minor 23+ is r185 parity); bloom strength is the page's 0.62 squared for minor 29's r185 UnrealBloomPass.
 ACES at exposure 1.4; the grade is the old display-space S-curve, tint and
 vignette. Reduced motion stops the twinkle, flicker, particles and tweens.
 

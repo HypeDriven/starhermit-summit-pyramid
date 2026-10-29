@@ -889,7 +889,8 @@ export function applyLook(next: Look): void {
   key.castShadow = next.shadows > 0;
   if (next.shadows > 0) key.shadow.mapSize = next.shadows;
   // high threshold: only the moon, fire, embers and the selection ring glow
-  renderer.bloom = next.bloom ? { strength: 0.62, radius: 0.42, threshold: 0.9, resolution: next.budget.bloomRes } : null;
+  // r169 page: UnrealBloomPass strength 0.62 → 0.62² at minor 29 (r185 bloom).
+  renderer.bloom = next.bloom ? { strength: 0.62 * 0.62, radius: 0.42, threshold: 0.9, resolution: next.budget.bloomRes } : null;
   renderer.ao = next.ao === "off" ? null : {
     blendIntensity: 0.75, radius: 0.55, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: next.ao === "high" ? 16 : 8,
     resolution: next.budget.aoRes,
