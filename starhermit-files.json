@@ -36,7 +36,7 @@
     "sfx/undo-swoosh.opus": {"sha256": "041bd6042b1447eca7c8d707709e52a860f5196d7b80f1fa9460b4d4883a632b", "size": 12045},
     "sfx/waste-recycle.opus": {"sha256": "16f6dd354f9f9a86f75a09dbe74b4631d7bcbbe8f122ab73deb65112be2af8d1", "size": 34118},
     "sfx/win-fanfare.opus": {"sha256": "2119d526468c987084cf57ec5d03bb9d0d7093af651d01f9f7a7231f81771fbd", "size": 42297},
-    "starhermit.txt": {"sha256": "8a8c50e87999f3115557f2dcac6f54a956192f3908244cf3a29f2127b0b3448c", "size": 2096}
+    "starhermit.txt": {"sha256": "029eec94dbe716342abe90c72b52981358b6d3e6b4c58289800203fb07a754fc", "size": 2096}
   },
   "excluded": ["LICENSE.md", "app/package.json", "coverart.png", "data/", "game.js", "knownissues.md", "node_modules/", "package-lock.json", "package.json", "server.js", "sfx/manifest.json", "sfx/manifest.md", "spec.md", "test.js", "tests/", "tools/", "tsconfig.json"],
   "format": 1
