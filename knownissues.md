@@ -1,6 +1,6 @@
 # Known Issues — Summit Pyramid
 
-## Engine port (1.23.0, minor 23)
+## Engine port (1.24.0, minor 23)
 
 - Ported from the three.js r169 browser build; rules, content and scoring
   unchanged. Checks: `npm test` (unit + native play scripts) and
