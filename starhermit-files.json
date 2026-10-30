@@ -12,14 +12,14 @@
     "content.js": {"sha256": "10f11d48d02eabc0eaa08223ce55edac0b4d6ab1e8574a2bb0b3d00add69a0bc", "size": 7143},
     "cover.jpg": {"sha256": "12c263ed7e50b8e208174c18b995f44293c4d86f5923f7af9bfa46b02769d3b6", "size": 328164},
     "icon.png": {"sha256": "f4badb45d6e35de889beddb36042e25357e088ab347b2bb41cfead1bc93735eb", "size": 5534},
-    "index.html": {"sha256": "bbde0bd96b5466c92dd059b29b84241920c6c97b7d528a89b1e9d3bf53ee6e54", "size": 1784},
+    "index.html": {"sha256": "52503e7ef5efffaeab4cc7c7a47f445be02a13c6413f13f46217abd7777d38cd", "size": 1784},
     "native/audio.ts": {"sha256": "5a603594b045a1870069280101a99a4979ce3b66513701ef3bf3676be6e9aacc", "size": 8062},
     "native/game.ts": {"sha256": "07fd79e09cc9c21fb402923b659f99b13f896a358a58dff4aea48167d1026857", "size": 4916},
     "native/i18n.ts": {"sha256": "f73f712278f97581cf4f0e98b7e8723538c18b1bde22a05d7922d9ef24f4630c", "size": 1617},
     "native/main.ts": {"sha256": "7d2b37febf5996cd41986159cb7a006db93765cd69b9005c5bce1353dec6b9bc", "size": 26170},
     "native/platform.ts": {"sha256": "7cef6e48ec8c7c8154ba4c650f7187b224ababa51edbbb407b9e0d4d0f1b47c0", "size": 10682},
     "native/quality.ts": {"sha256": "875e7a21b44f4bd91efd124a9f7e1789839401045ff663e6090caa7ab77a7c9c", "size": 3999},
-    "native/render.ts": {"sha256": "a60989b5fef845232bc05937674367e879ca47482dd57148fb1031923060608d", "size": 45899},
+    "native/render.ts": {"sha256": "1ea2cc66553169f277b19a474060d67db4ec49b7b7e11ee1427052ad1557c737", "size": 45927},
     "native/screens.ts": {"sha256": "c75fbaad2b0274991d99d583941e666d83d4d90c70baf27e892f77568a7a5e3f", "size": 36178},
     "native/style.ts": {"sha256": "c77924d9b2d5c556e0e963409e54e106551d93ab498ba58e2e2b5c99376605d3", "size": 3416},
     "rules.js": {"sha256": "8017ff1bd575574054c94375d3a9f3bc93df30523b527d3003ce145d163cea91", "size": 12635},
@@ -36,7 +36,7 @@
     "sfx/undo-swoosh.opus": {"sha256": "041bd6042b1447eca7c8d707709e52a860f5196d7b80f1fa9460b4d4883a632b", "size": 12045},
     "sfx/waste-recycle.opus": {"sha256": "16f6dd354f9f9a86f75a09dbe74b4631d7bcbbe8f122ab73deb65112be2af8d1", "size": 34118},
     "sfx/win-fanfare.opus": {"sha256": "2119d526468c987084cf57ec5d03bb9d0d7093af651d01f9f7a7231f81771fbd", "size": 42297},
-    "starhermit.txt": {"sha256": "bc95c27bb089e6c38c5fcd3aecdef3f6a8a67dc17930557f411552c25a02afeb", "size": 2096}
+    "starhermit.txt": {"sha256": "8595479b68c9ff55ff684fcb0d7f800e5369d134dc9f0dcac29b098624c74a85", "size": 2096}
   },
   "excluded": ["LICENSE.md", "app/package.json", "coverart.png", "data/", "game.js", "knownissues.md", "node_modules/", "package-lock.json", "package.json", "server.js", "sfx/manifest.json", "sfx/manifest.md", "spec.md", "test.js", "tests/", "tools/", "tsconfig.json"],
   "format": 1

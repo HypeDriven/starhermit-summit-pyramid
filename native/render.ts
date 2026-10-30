@@ -889,8 +889,8 @@ export function applyLook(next: Look): void {
   key.castShadow = next.shadows > 0;
   if (next.shadows > 0) key.shadow.mapSize = next.shadows;
   // high threshold: only the moon, fire, embers and the selection ring glow
-  // r169 page: UnrealBloomPass strength 0.62 → 0.62² at minor 29 (r185 bloom).
-  renderer.bloom = next.bloom ? { strength: 0.62 * 0.62, radius: 0.42, threshold: 0.9, resolution: next.budget.bloomRes } : null;
+  // r169 page: UnrealBloomPass 0.62 as bloom.model "r160" (three r169 and older).
+  renderer.bloom = next.bloom ? { model: "r160", strength: 0.62, radius: 0.42, threshold: 0.9, resolution: next.budget.bloomRes } : null;
   renderer.ao = next.ao === "off" ? null : {
     blendIntensity: 0.75, radius: 0.55, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: next.ao === "high" ? 16 : 8,
     resolution: next.budget.aoRes,
@@ -899,7 +899,7 @@ export function applyLook(next: Look): void {
   // GradeShader after OutputPass (display space): an 0.18 S-curve, saturation 1.07, cool shadows / warm highlights by a
   // smoothstep of luma 0.15–0.75, a 0.3 vignette from 0.38 to 0.9 with x × 1.1.
   renderer.grade = next.grade ? {
-    space: "display", contrast: 0.09, saturation: 1.07, split: [0.15, 0.75], shadows: [0.94, 0.97, 1.07], highlights: [1.03, 1.0, 0.97],
+    space: "display", contrastCurve: "s", contrast: 0.18, saturation: 1.07, split: [0.15, 0.75], shadows: [0.94, 0.97, 1.07], highlights: [1.03, 1.0, 0.97],
     vignette: { amount: 0.3, inner: 0.38, outer: 0.9, scale: [1.1, 1] },
   } : null;
   renderer.antialias = next.antialias;
