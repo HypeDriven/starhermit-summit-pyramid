@@ -283,7 +283,7 @@ let envDisposables: { dispose(): void }[] = [];
 
 function envTexture(): Texture | null {
   if (!envTex) {
-    try { envTex = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture; }
+    try { const pageRoom = new RoomEnvironment(renderer); pageRoom.position.y = 0; /* the page's three r169 (pre-r183) builds the room at the origin */ envTex = new PMREMGenerator(renderer).fromScene(pageRoom, 0.04).texture; }
     catch (e) { console.warn(`environment: ${String(e)}`); }
   }
   return envTex;
