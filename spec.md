@@ -3,7 +3,7 @@
 A single-player pyramid solitaire on a desert night: remove pairs of uncovered
 cards that total 14 and clear the 28-card pyramid before the stock runs out.
 It is a StarHermit engine script game (TypeScript on the host API), pinned to
-engine **1.28.0** with `engine.minor=30`, played natively by the StarHermit
+engine **1.29.0** with `engine.minor=31`, played natively by the StarHermit
 client and in browsers by the engine's web runtime from one package.
 
 ## Rules (rules.js, unchanged)
