@@ -12,11 +12,10 @@ cover=cover.jpg
 launch=index.html
 engine.api=1
 engine.entry=native/main.ts
-engine.version=1.36.0
-engine.minor=32
+engine.version=1.37.0
+engine.minor=37
 engine.capabilities=platform,storage,clipboard
 # Ultra's 512-px card faces (28 on the board, more as the waste turns) need more than the default 56 MiB.
-engine.limits.image_mib=160
 
 # Keyboard actions (players rebind keys and pads in the runtime's Options).
 # The tableau is also played with the pointer or a finger: a press on an
