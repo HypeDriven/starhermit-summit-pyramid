@@ -93,12 +93,13 @@ synced with the account.
 
 Per the runtime's quality tier (native/quality.ts, the browser build's
 presets and budgets): Low — Lambert, plain box cards with 128-px faces, no
-shadows or effects, MSAA, static stars; Balanced — Standard materials,
+shadows or effects, no anti-aliasing (the level's; Atomic adds FXAA and the grade), static stars; Balanced — Standard materials,
 rounded cards with 256-px faces, sand texture and bump, sky dome, flames,
 1024 shadows, bloom, grade, FXAA, reflections, twinkling stars, 35 %
 particles; High — clear-coated Physical cards, 2048 shadows, GTAO, SMAA,
 full particles; Ultra — 512-px faces, 4096 shadows, full-resolution GTAO
-and bloom, MSAA. Stars and particles scale within a tier by the level
+and bloom, MSAA. Shadows, GTAO, bloom, grade and anti-aliasing are the level's
+(`levelSettings()`). Stars and particles scale within a tier by the level
 (≤ 1.5×). Lights, shadows (the key light's shadow box ±6.2, near 2, far 32,
 bias −0.0006, normal bias 0.02, radius 3) and the environment
 (`RoomEnvironment(renderer)`, sigma 0.04, `scene.environment` at intensity
@@ -136,9 +137,9 @@ into clips. Captions (when on) name each sound.
 
 - `rules.js`, `content.js` — rules and content (UMD; also used by `server.js`,
   `game.js`, `test.js`).
-- `app/` — pure modules shared with node tests: `lang.js` (T, locales),
-  `strings.js` (tables), `loc.js` (card and mode names), `sh-i18n.js`
-  (account strings), `save.js` (save model).
+- `app/` — pure modules shared with node tests: `lang.js` (T for loc.js),
+  `loc.js` (card and mode names), `save.js` (save model). Tables: `assets/strings.json` on the
+  engine's strings (account lines are its `starhermit.*`).
 - `native/` — the engine client: `main.ts` (flow, input, commands),
   `screens.ts` (UI), `render.ts` (scene), `audio.ts`, `platform.ts`,
   `quality.ts`, `style.ts`, `i18n.ts`, `game.ts` (typed facades).

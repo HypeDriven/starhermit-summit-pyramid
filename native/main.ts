@@ -14,7 +14,7 @@
 //
 // Time is the runtime's fixed steps: toasts, captions and the pad's notes
 // run on a clock advanced 1/60 s per fixed step.
-import { clipboard, frame, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
+import { afterRender, clipboard, frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate } from "starhermit:engine";
 import { bindings, onAction, onPointerButton, onTouch, primaryPointer } from "starhermit:input";
 import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
@@ -82,9 +82,8 @@ export function sound(ev: audio.Sfx): void {
   const c = CAPTIONS[ev];
   if (c && platform.options.captions) app.caption = { text: `♪ ${T(c)}`, until: now() + 1.6 };
 }
-const pending: (() => void)[] = [];
-/** A widget's press, run once the frame's UI is built. */
-export function later(fn: () => void): void { pending.push(fn); }
+/** A widget's press, run once the frame's UI is built, before the scene is drawn. */
+export function later(fn: () => void): void { afterRender(fn); }
 export function themeFor(id: string | undefined): Theme { return C.THEMES.find((t) => t.id === id) || C.THEMES[0]!; }
 export const inRound = (): boolean => app.flow === "active" || app.flow === "tutorial";
 
@@ -198,8 +197,8 @@ function endRound(terminal: Terminal): void {
 export function resultsLbLine(): string | null {
   const lb = app.results?.lb;
   if (!lb) return null;
-  if (lb === "posting") return S("lbPosting");
-  return !lb.posted ? S("lbNotPosted") : lb.rank ? S("lbRank", { rank: lb.rank }) : S("lbPosted");
+  if (lb === "posting") return S("leaderboardPosting");
+  return !lb.posted ? S("leaderboardNotPosted") : lb.rank ? S("leaderboardRank", { rank: lb.rank }) : S("leaderboardPosted");
 }
 function grant(id: string, unlocked: Achievement[]): void {
   const save = platform.progress();
@@ -449,7 +448,7 @@ export function signIn(): void { void requestSignIn().catch(() => undefined); }
 export function invite(): void {
   const link = platform.inviteLink();
   if (!link) return;
-  try { clipboard.writeText(link); toast(S("copied")); } catch { toast(S("copyFail", { url: link }), 6000); }
+  try { clipboard.writeText(link); toast(S("inviteCopied")); } catch { toast(S("inviteLink", { link }), 6000); }
 }
 
 // ------------------------------------------------------------------ keys and pads (main.js onKey)
@@ -543,10 +542,9 @@ onFixedUpdate(() => {
 let lookKey = "";
 function applyLook(): void {
   const f = frame();
-  const k = `${f.quality}:${f.levelIndex}`;
-  if (k === lookKey) return;
-  lookKey = k;
-  render.applyLook(lookFor(f.quality, f.levelIndex));
+  if (f.level === lookKey) return;
+  lookKey = f.level;
+  render.applyLook(lookFor(levelSettings(f.level)));
 }
 onStart(() => {
   setFixedRate(60);
@@ -584,9 +582,10 @@ onUpdate((dt) => {
 onRender(() => {
   const wasRound = inRound() && !app.overlay;
   drawScreens();
-  for (const fn of pending.splice(0)) fn();
-  pointerInput(wasRound);
-  const f = frame();
-  render.update(frameDt, f.width, f.height, view, 6 * f.scale, f.scale);
-  flushAnnouncements();
+  afterRender(() => { // after this frame's presses (added earlier), before the scene is synced and drawn
+    pointerInput(wasRound);
+    const f = frame();
+    render.update(frameDt, f.width, f.height, view, 6 * f.scale, f.scale);
+    flushAnnouncements();
+  });
 });

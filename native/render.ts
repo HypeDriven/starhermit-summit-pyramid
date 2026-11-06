@@ -29,7 +29,7 @@ import {
   InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial,
   PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PMREMGenerator, PointLight, Points, PointsMaterial, Raycaster,
   RepeatWrapping, RingGeometry, RoomEnvironment, SRGBColorSpace, ShaderMaterial, Shape, SphereGeometry, TextureLoader,
-  Vector2, Vector3, Vector4, BufferAttribute, BufferGeometry, pointerToNdc, renderer, scene,
+  Vector2, Vector3, Vector4, BufferAttribute, BufferGeometry, pointerToNdc, renderer, scene, stopTweens, tween,
   type BufferGeometry as Geo, type Material, type Object3D, type Texture,
 } from "starhermit:scene";
 import { OffscreenCanvas, fonts, type OffscreenCanvasRenderingContext2D } from "starhermit:canvas";
@@ -736,8 +736,6 @@ let wasteTop: number | null | undefined = undefined;
 let marker: Mesh | null = null;
 let lastState: State | null = null;
 let lastSelection: CardRef[] = [];
-interface Tween { obj: Vector3; key: "x" | "y" | "z"; from: number; to: number; t0: number; ms: number }
-let tweens: Tween[] = [];
 interface Flight { meshes: Mesh[]; t0: number; done: () => void }
 let flights: Flight[] = [];
 
@@ -751,7 +749,7 @@ export function buildBoard(state: State, th: Theme): void {
   for (const f of flights) f.done();
   flights = [];
   clearGroup(gameplay);
-  tweens = [];
+  stopTweens();
   cardMeshes = new Array(28).fill(null);
   wasteTop = undefined;
   wasteMesh = null;
@@ -789,9 +787,9 @@ export function setMenuMode(on: boolean): void {
   frameKey = "";
 }
 
-function tween(obj: Vector3, keyName: "y", to: number, ms: number): void {
-  tweens = tweens.filter((t) => !(t.obj === obj && t.key === keyName));
-  tweens.push({ obj, key: keyName, from: obj[keyName], to, t0: time, ms });
+/** A card settles to its height (140 ms ease-out cubic, render3d.js); a new one replaces the running one. */
+function settle(pos: Vector3, y: number): void {
+  tween(pos, { y }, { duration: 0.14, easing: "easeOutCubic" });
 }
 
 /** render3d.js syncState: cards shown/hidden by the state, the selection lift, the waste top, the marker. */
@@ -812,7 +810,7 @@ export function sync(state: State, selection: CardRef[]): void {
     const ty = y + (sel ? 0.35 : 0);
     mesh.position.x = x; mesh.position.z = z;
     if (reduced) mesh.position.y = ty;
-    else tween(mesh.position, "y", ty, 140);
+    else settle(mesh.position, ty);
   }
   stockMesh.visible = state.stock.length > 0;
   const top = state.waste.length ? state.waste[state.waste.length - 1]! : null;
@@ -830,7 +828,7 @@ export function sync(state: State, selection: CardRef[]): void {
   if (wasteMesh && !wasteMesh.userData.removing) {
     const ty = 0.06 + (selection.some((s) => s.zone === "waste") ? 0.35 : 0);
     if (reduced) wasteMesh.position.y = ty;
-    else tween(wasteMesh.position, "y", ty, 140);
+    else settle(wasteMesh.position, ty);
   }
   if (selection.length && marker) {
     const s = selection[0]!;
@@ -853,7 +851,7 @@ export function animateRemoval(refs: CardRef[], done: () => void): void {
   for (const m of meshes) {
     m.userData.removing = true;
     m.userData.flyFrom = m.position.y;
-    tweens = tweens.filter((t) => t.obj !== m.position);
+    stopTweens(m.position);
   }
   if (refs.some((r) => r.zone === "waste")) wasteMesh = null; // the next top builds a mesh of its own
   flights.push({ meshes, t0: time, done });
@@ -890,11 +888,12 @@ export function applyLook(next: Look): void {
   if (next.shadows > 0) key.shadow.mapSize = next.shadows;
   // high threshold: only the moon, fire, embers and the selection ring glow
   // r169 page: UnrealBloomPass 0.62 as bloom.model "r160" (three r169 and older).
-  renderer.bloom = next.bloom ? { model: "r160", strength: 0.62, radius: 0.42, threshold: 0.9, resolution: next.budget.bloomRes } : null;
-  renderer.ao = next.ao === "off" ? null : {
-    blendIntensity: 0.75, radius: 0.55, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: next.ao === "high" ? 16 : 8,
-    resolution: next.budget.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
+  renderer.bloom = next.bloom !== null ? { model: "r160", strength: 0.62, radius: 0.42, threshold: 0.9, resolution: next.bloom } : null;
+  const ao = next.ao, fullAo = !!ao && ao.resolution >= 1; // the engine's AoQuality: resolution below 1 is "on", 1 is "high"
+  renderer.ao = !ao ? null : {
+    blendIntensity: 0.75, radius: 0.55, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: ao.samples,
+    resolution: ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: fullAo ? 6 : 4, rings: 2, samples: ao.denoiseSamples, radiusExponent: 2 },
   };
   // GradeShader after OutputPass (display space): an 0.18 S-curve, saturation 1.07, cool shadows / warm highlights by a
   // smoothstep of luma 0.15–0.75, a 0.3 vignette from 0.38 to 0.9 with x × 1.1.
@@ -992,11 +991,6 @@ export function update(dt: number, w: number, h: number, safe: Rect, pad: number
     }
   }
   time += dt;
-  tweens = tweens.filter((t) => {
-    const a = Math.min(1, (time - t.t0) / (t.ms / 1000));
-    t.obj[t.key] = t.from + (t.to - t.from) * (1 - Math.pow(1 - a, 3));
-    return a < 1;
-  });
   stepFlights();
   const moving = !reduced;
   if (stars && moving) stars.rotation.y += dt * 0.004;

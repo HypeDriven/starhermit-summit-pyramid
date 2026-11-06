@@ -1,0 +1,27 @@
+# Tier bench: Practice Foothill on a fixed seed, the pyramid under the night sky with cards selected and drawn.
+until 600 Summit Pyramid
+frames 30
+click =Play
+until 600 Pair to 14
+frames 10
+click =Quit tutorial
+until 300 Choose a mode
+frames 10
+click Practice — pick a difficulty
+until 300 Seed (optional)
+frames 10
+click random
+type 4242
+frames 5
+click Foothill
+until 300 Practice — Foothill
+frames 120
+measure start
+frames 200
+key KeyD 1
+frames 120
+key KeyD 1
+frames 120
+key KeyD 1
+frames 160
+measure stop
