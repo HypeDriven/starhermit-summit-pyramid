@@ -167,3 +167,11 @@ into clips. Captions (when on) name each sound.
   Speed Ascent deals (content kept as the browser build had it).
 - The card corner indices and suit glyphs use the engine's serif and
   sans-serif faces, not Georgia / system-ui.
+
+<!-- regional-localization:start -->
+
+### Regional interface languages
+
+The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-SG`, `en-HK`, `en-BQ`, `es-CO`, `de-IT`, `fr-IT`, `es-CL`, `es-AR`, `es-EC`, `de-BR`. These reuse the corresponding existing translations in their language family. The runtime can resolve the exact regional tag. Language selection is available from the game’s Options panel or F2 and is saved per player in `ui.language`. Changes apply during play. Additional national, regional and indigenous language packs are only shipped once every English message has a translation with intact placeholders and markup. Complete additional language tables: `ja-JP`, `zh-SG`, `ms-SG`, `sv-FI`, `id-ID`, `vi-VN`, `ta-SG`, `zh-HK`, `yue-HK`, `fi-FI`, `et-EE`, `da-DE`, `nl-BE`, `lb-BE`, `co-FR`, `eu-FR`, `ca-FR`, `nl-NL`, `sl-IT`, `ca-IT`, `ca-ES`, `eu-ES`, `gl-ES`, `su-ID`, `km-VN`, `ru-FI`, `ru-EE`, `oc-FR`, `fur-IT`, `oc-IT`, `bew-ID`.
+
+<!-- regional-localization:end -->

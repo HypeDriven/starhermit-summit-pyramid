@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { usedKeys } from './i18n-keys.mjs';
 
 const TABLES = JSON.parse(readFileSync(new URL('../assets/strings.json', import.meta.url), 'utf8'));
-const LOCALES = ['en-US', 'en-GB', 'es-419', 'es-ES', 'de-DE', 'fr-FR', 'fr-CA', 'pt-BR', 'it-IT'];
+const LOCALES = ['en-US', 'es-419', 'de-DE', 'fr-FR', 'pt-BR', 'it-IT', 'en-GB', 'es-ES', 'fr-CA', 'fr-BE', 'de-BE', 'en-SG', 'en-HK', 'en-BQ', 'es-CO', 'de-IT', 'fr-IT', 'es-CL', 'es-AR', 'es-EC', 'ja-JP', 'zh-SG', 'ms-SG', 'sv-FI', 'id-ID', 'vi-VN', 'de-BR', 'ta-SG', 'zh-HK', 'yue-HK', 'fi-FI', 'et-EE', 'da-DE', 'nl-BE', 'lb-BE', 'co-FR', 'eu-FR', 'ca-FR', 'nl-NL', 'sl-IT', 'ca-IT', 'ca-ES', 'eu-ES', 'gl-ES', 'su-ID', 'km-VN', 'ru-FI', 'ru-EE', 'oc-FR', 'fur-IT', 'oc-IT', 'bew-ID'];
 const PARENT = { 'en-GB': 'en-US', 'es-ES': 'es-419', 'fr-CA': 'fr-FR' };
 const has = (l, k) => { for (let x = l; x; x = PARENT[x]) if (TABLES[x] && Object.hasOwn(TABLES[x], k)) return TABLES[x][k]; return undefined; };
 const holes = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');

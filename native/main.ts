@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Summit Pyramid on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules (rules.js) and content (content.js)
@@ -579,7 +580,7 @@ onUpdate((dt) => {
   app.toasts = app.toasts.filter((x) => x.until >= t);
   if (app.caption && app.caption.until < t) app.caption = null;
 });
-onRender(() => {
+onRender(__l10nRender(() => {
   const wasRound = inRound() && !app.overlay;
   drawScreens();
   afterRender(() => { // after this frame's presses (added earlier), before the scene is synced and drawn
@@ -588,4 +589,8 @@ onRender(() => {
     render.update(frameDt, f.width, f.height, view, 6 * f.scale, f.scale);
     flushAnnouncements();
   });
-});
+}));
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);

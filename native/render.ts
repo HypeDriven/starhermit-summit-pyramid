@@ -1,3 +1,5 @@
+// localization-runtime:attached
+import { localizedCanvasFont as __l10nCanvasFont } from "./l10n/font.ts";
 // The desert-night tableau on starhermit:scene, as the browser build's
 // app/render3d.js drew it with three.js r169: the sand floor (ripple texture
 // and bump when detailed), dunes, the sky dome with its moon-side glow (or a
@@ -152,12 +154,12 @@ function cardCanvas(card: number, cvd: string, hi: boolean, px: number): Offscre
     g.fillStyle = "#f4f0e4"; g.fillRect(0, 0, 128, 180);
     g.strokeStyle = "#8a8578"; g.lineWidth = 4; g.strokeRect(3, 3, 122, 174);
     g.fillStyle = color;
-    g.font = `bold 34px ${SANS}`;
+    g.font = __l10nCanvasFont(`bold 34px ${SANS}`);
     g.textAlign = "center";
     g.fillText(rank, 64, 70);
-    g.font = `44px ${SANS}`;
+    g.font = __l10nCanvasFont(`44px ${SANS}`);
     g.fillText(suit, 64, 130);
-    g.font = `bold 18px ${SANS}`;
+    g.font = __l10nCanvasFont(`bold 18px ${SANS}`);
     g.textAlign = "left"; g.fillText(rank, 10, 26);
     return c;
   }
@@ -178,15 +180,15 @@ function cardCanvas(card: number, cvd: string, hi: boolean, px: number): Offscre
   roundRect(g, 14, 14, W - 28, H - 28, 14); g.stroke();
   g.fillStyle = color;
   g.textAlign = "center"; g.textBaseline = "alphabetic";
-  g.font = `bold 76px ${SERIF}`;
+  g.font = __l10nCanvasFont(`bold 76px ${SERIF}`);
   g.fillText(rank, W / 2, 150);
-  g.font = `96px ${SANS}`;
+  g.font = __l10nCanvasFont(`96px ${SANS}`);
   g.fillText(suit, W / 2, 262);
   // corner indices (top-left, and rotated bottom-right)
   const corner = (): void => {
     g.textAlign = "center";
-    g.font = `bold 36px ${SERIF}`; g.fillText(rank, 38, 52);
-    g.font = `30px ${SANS}`; g.fillText(suit, 38, 84);
+    g.font = __l10nCanvasFont(`bold 36px ${SERIF}`); g.fillText(rank, 38, 52);
+    g.font = __l10nCanvasFont(`30px ${SANS}`); g.fillText(suit, 38, 84);
   };
   corner();
   g.save(); g.translate(W, H); g.rotate(Math.PI); corner(); g.restore();

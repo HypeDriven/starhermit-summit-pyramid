@@ -1,3 +1,7 @@
+import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
+import { localizedDrawOptions as __l10nDrawOptions } from "./l10n/font.ts";
+// localization-runtime:attached
+import { openLocalizedOptions as __l10nOptions } from "./l10n/menu.ts";
 // The browser build's DOM shell (app/ui.js + index.html) as starhermit:ui,
 // built every frame over the tableau: the top bar (objective, score with the
 // breakdown button, moves against the limit, the deal seed, the mode, the
@@ -13,7 +17,22 @@
 // queries are layouts picked by the window's logical size (≤ 720 px wide:
 // compact bars; ≤ 500 px tall landscape: the lesson panel at the side). The
 // scene's view rectangle goes to main.ts (view → render.ts).
-import { frame, openMenu } from "starhermit:engine";
+// The browser build's DOM shell (app/ui.js + index.html) as starhermit:ui,
+// built every frame over the tableau: the top bar (objective, score with the
+// breakdown button, moves against the limit, the deal seed, the mode, the
+// player and cloud-sync line), the tray (Draw with the stock count, the
+// waste pile, Recycle with the recycles left, Undo, Hint, Pause; mirrored
+// for the left-handed tray), the lesson panel (non-modal, above the tray;
+// beside the board in short landscape), the captions line, the toast, named
+// targets over the cards (the canvas picking's accessible mirror: screen
+// readers and play scripts find them), the 2D board (Settings › 2D board:
+// one button per pyramid slot and the waste, over the tableau) and every
+// screen (title, modes, journey, practice, challenge, pause, results, help,
+// settings, leaderboard) as dialogs over the dimmed tableau. The old media
+// queries are layouts picked by the window's logical size (≤ 720 px wide:
+// compact bars; ≤ 500 px tall landscape: the lesson panel at the side). The
+// scene's view rectangle goes to main.ts (view → render.ts).
+import { frame } from "starhermit:engine";
 import { requestRebind } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
@@ -43,7 +62,7 @@ function textWidth(text: string, style: string, kind?: "button" | "heading"): nu
 /** Text up to `width` wide: one label when it fits, else a paragraph. */
 function para(text: string, width: number, cls = "text", id?: string): void {
   if (!text) return;
-  let u = ui.style(cls);
+  let u = ui.style(__l10nStyle(cls));
   if (id) u = u.id(id);
   if (textWidth(text, cls) <= width) u.label(text);
   else u.paragraph(text, Math.max(20, width));
@@ -66,16 +85,16 @@ function button(b: Btn): void {
     const sub = b.sub;
     const one = btnWidth(b) <= (b.width ?? 1e9);
     opts.content = () => {
-      if (one) ui.row(`${b.id}-face`, () => { ui.style(style === "btn-primary" ? "wrap-ink" : "btn-label").label(b.text); ui.style("btn-dim").label(sub); }, { spacing: subGap, align: "center" });
-      else ui.style("wrap").paragraph(`${b.text} ${sub}`, Math.max(20, inner));
+      if (one) ui.row(`${b.id}-face`, () => { ui.style(__l10nStyle(style === "btn-primary" ? "wrap-ink" : "btn-label")).label(b.text); ui.style(__l10nStyle("btn-dim")).label(sub); }, { spacing: subGap, align: "center" });
+      else ui.style(__l10nStyle("wrap")).paragraph(`${b.text} ${sub}`, Math.max(20, inner));
     };
   } else if (b.width != null && btnWidth(b) > b.width) {
-    opts.content = () => { ui.style(style === "btn-primary" ? "wrap-ink" : "wrap").paragraph(b.text, Math.max(20, inner)); };
-  } else if (b.name && b.name !== b.text) opts.content = () => { ui.style(style === "btn-primary" ? "wrap-ink" : "btn-label").label(b.text); };
+    opts.content = () => { ui.style(__l10nStyle(style === "btn-primary" ? "wrap-ink" : "wrap")).paragraph(b.text, Math.max(20, inner)); };
+  } else if (b.name && b.name !== b.text) opts.content = () => { ui.style(__l10nStyle(style === "btn-primary" ? "wrap-ink" : "btn-label")).label(b.text); };
   const s: ui.Style = {};
   if (b.width != null) s.width = b.width;
   if (b.height != null) s.height = b.height;
-  if (ui.style(style, s).id(b.id).button(b.name ?? (b.sub ? `${b.text} ${b.sub}` : b.text), opts) && fresh()) later(b.act);
+  if (ui.style(__l10nStyle(style), __l10nStyle(s)).id(b.id).button(b.name ?? (b.sub ? `${b.text} ${b.sub}` : b.text), opts) && fresh()) later(b.act);
 }
 /** Buttons at their own widths in rows that wrap at `width` (flex-wrap). */
 function flow(label: string, list: Btn[], width: number, gap = 8, justify: "start" | "center" | "end" = "start"): void {
@@ -89,7 +108,7 @@ function toWindow(L: Layout, x: number, y: number, w: number, h: number): ui.Rec
 /** A box over a logical rectangle drawn by a placed role-none widget. */
 function paint(id: string, x: number, y: number, w: number, h: number, cls: string): void {
   if (w <= 0 || h <= 0) return;
-  ui.place(id, { anchor: "top-start", x, y }, () => { ui.style(cls).widget("", { role: "none", size: { width: w, height: h } }); });
+  ui.place(id, { anchor: "top-start", x, y }, () => { ui.style(__l10nStyle(cls)).widget("", { role: "none", size: { width: w, height: h } }); });
 }
 
 // ------------------------------------------------------------------ the frame
@@ -125,7 +144,7 @@ function shell(L: Layout): void {
   else if (playing && !app.overlay) cardTargets();
   // captions (#captions: 56 px under the main area's top) and the toast (80 px above its bottom)
   if (app.caption) {
-    ui.place("captions", { anchor: "top", y: top + 56 - 46 }, () => ui.style("caption").id("caption-text").label(app.caption!.text));
+    ui.place("captions", { anchor: "top", y: top + 56 - 46 }, () => ui.style(__l10nStyle("caption")).id("caption-text").label(app.caption!.text));
   }
   if (app.toasts.length) {
     const t = app.toasts[0]!;
@@ -152,22 +171,22 @@ function topBar(L: Layout): number {
   const kv = (id: string, k: string, v: string, dim = false, extra?: () => void, extraW = 0): Item => ({
     id, w: textWidth(k, dim ? "hud-dim" : "hud-k") + 4 + textWidth(v, dim ? "hud-dim-v" : "hud-v") + (extra ? 6 + extraW : 0),
     build: () => ui.row(id, () => {
-      ui.style(dim ? "hud-dim" : "hud-k").label(k);
-      ui.style(dim ? "hud-dim-v" : "hud-v").id(`${id}-v`).label(v);
+      ui.style(__l10nStyle(dim ? "hud-dim" : "hud-k")).label(k);
+      ui.style(__l10nStyle(dim ? "hud-dim-v" : "hud-v")).id(`${id}-v`).label(v);
       extra?.();
     }, { spacing: 4, align: "center" }),
   });
   const infoW = 44;
   items.push(kv("score-wrap", T("Score"), String(score.total), false, () => {
-    if (ui.style("btn", { width: infoW, minHeight: 36, height: 36, padding: 0 }).id("btn-breakdown").button(T("Show score breakdown"), { content: () => ui.style("btn-label").label("ⓘ") }) && fresh()) later(showBreakdown);
+    if (ui.style(__l10nStyle("btn"), __l10nStyle({ width: infoW, minHeight: 36, height: 36, padding: 0 })).id("btn-breakdown").button(T("Show score breakdown"), { content: () => ui.style(__l10nStyle("btn-label")).label("ⓘ") }) && fresh()) later(showBreakdown);
   }, infoW));
   items.push(kv("moves-wrap", T("Moves"), `${st.moves}${st.options.moveLimit ? ` / ${st.options.moveLimit}` : ""}`));
   if (!L.compact) items.push(kv("seed-wrap", T("seed"), String(st.seed), true));
   const mode = Loc.modeLabel(g.cfg);
-  items.push({ id: "mode-label", w: textWidth(mode, "hud-dim"), build: () => { ui.style("hud-dim").id("mode-label").label(mode); } });
+  items.push({ id: "mode-label", w: textWidth(mode, "hud-dim"), build: () => { ui.style(__l10nStyle("hud-dim")).id("mode-label").label(mode); } });
   if (platform.signedIn()) {
     const who = `${platform.displayName()} ${syncShort()}`.trim();
-    items.push({ id: "player-wrap", w: textWidth(who, "hud-dim"), build: () => { ui.style("hud-dim").id("player-wrap").label(who); } });
+    items.push({ id: "player-wrap", w: textWidth(who, "hud-dim"), build: () => { ui.style(__l10nStyle("hud-dim")).id("player-wrap").label(who); } });
   }
   // rows: the objective first (wrapping when it is wider than the bar), then the items, flex-wrapped
   const objW = Math.min(inner, textWidth(objective, "objective") + 1);
@@ -185,8 +204,8 @@ function topBar(L: Layout): number {
     lastSize.set("topbar-in", ui.column("topbar-in", () => {
       rows.forEach((row, ri) => ui.row(`topbar-r${ri}`, () => {
         if (ri === 0) {
-          if (textWidth(objective, "objective") <= inner) ui.style("objective").id("objective").label(objective);
-          else ui.style("objective").id("objective").paragraph(objective, inner);
+          if (textWidth(objective, "objective") <= inner) ui.style(__l10nStyle("objective")).id("objective").label(objective);
+          else ui.style(__l10nStyle("objective")).id("objective").paragraph(objective, inner);
         }
         ui.spacer();
         for (const it of row) it.build();
@@ -226,9 +245,9 @@ function tray(L: Layout): number {
     btn({ id: "btn-draw", text: T("Draw"), sub: `(${st.stock.length})`, name: T("Draw"), act: () => doCommand({ type: "draw" }), disabled: !st.stock.length || !canRound }),
     {
       w: pileW, build: () => ui.column("pile", () => {
-        ui.style("pile-k").label(pileK);
-        ui.style("pile-v").id("waste-top").label(pileV);
-        if (pileN) ui.style("pile-n").id("waste-count").label(pileN);
+        ui.style(__l10nStyle("pile-k")).label(pileK);
+        ui.style(__l10nStyle("pile-v")).id("waste-top").label(pileV);
+        if (pileN) ui.style(__l10nStyle("pile-n")).id("waste-count").label(pileN);
       }, { width: pileW, spacing: 0, align: "center" }),
     },
     btn({ id: "btn-recycle", text: T("Recycle"), sub: `(${st.recyclesLeft})`, name: T("Recycle"), act: () => doCommand({ type: "recycle" }),
@@ -340,7 +359,7 @@ function domBoard(L: Layout, canvas: { x: number; y: number; w: number; h: numbe
         const cls = selected ? "card-btn-sel" : isLegal ? "card-btn-legal" : "card-btn";
         const red = card != null && card >= 13 && card < 39;
         const face = Loc.cardShort(card);
-        if (ui.style(cls, { width: cw, height: ch }).id(id).button(name, { disabled: !exposed, content: () => ui.style(red ? "card-red" : "card-black").label(face) }) && fresh()) {
+        if (ui.style(__l10nStyle(cls), __l10nStyle({ width: cw, height: ch })).id(id).button(name, { disabled: !exposed, content: () => ui.style(__l10nStyle(red ? "card-red" : "card-black")).label(face) }) && fresh()) {
           later(() => tapTarget(ref));
         }
       };
@@ -378,7 +397,7 @@ function overlay(L: Layout): void {
   const prev = lastSize.get(key);
   const scroll = !!prev && prev.height / L.sc + 2 * padY > maxH;
   const opening = frame().frame - app.openedFrame <= 6;
-  const isOpen = ui.style(o === "title" || o === "modes" ? "dlg-light" : "dlg").dialog(panelLabel(o), "", true, () => {
+  const isOpen = ui.style(__l10nStyle(o === "title" || o === "modes" ? "dlg-light" : "dlg")).dialog(panelLabel(o), "", true, () => {
     ui.column("panel", () => {
       const iw = inner - (scroll ? 14 : 0);
       const body = (): void => { lastSize.set(key, ui.column(`${key}-in`, () => buildPanel(o, iw, L), { spacing: 9.6, width: iw })); };
@@ -520,10 +539,10 @@ function table(id: string, rows: string[][], w: number): void {
       if (r.length === 1) { para(r[0]!, w - 16, "td-muted"); return; }
       for (let c = 0; c < r.length - 1; c++) {
         if (c === r.length - 2 && r.length === 2) para(r[c]!, w * 0.7, "td");
-        else ui.style("td").label(r[c]!);
+        else ui.style(__l10nStyle("td")).label(r[c]!);
       }
       ui.spacer();
-      ui.style("td-num").label(r[r.length - 1]!);
+      ui.style(__l10nStyle("td-num")).label(r[r.length - 1]!);
     }, { style: "tr", width: w, spacing: 12, align: "center" }));
   }, { spacing: 0, width: w });
 }
@@ -576,7 +595,7 @@ function settingsPanel(w: number): void {
   para(T("Audio"), w, "h3", "set-audio-h");
   para(T("Volumes, graphics quality, language, larger text, high contrast and reduced motion are in the StarHermit Options."), w, "muted", "options-note");
   flow("set-runtime", [
-    { id: "btn-options", text: T("Open Options"), act: () => openMenu() },
+    { id: "btn-options", text: T("Open Options"), act: () => __l10nOptions() },
     { id: "btn-rebind", text: T("Key bindings"), act: () => requestRebind() },
   ], w);
   toggleRow("opt-captions", T("Audio captions"), o.captions, w, (v) => platform.setOption("captions", v));
@@ -607,7 +626,7 @@ function toggleRow(id: string, label: string, on: boolean, w: number, set: (v: b
         const s = st.scale, box = 20 * s, bx = r.x + (r.width - box) / 2, by = r.y + (r.height - box) / 2;
         draw.roundRect(bx, by, box, box, 4, on ? token("accent") : token("panel2"));
         draw.strokeRoundRect(bx, by, box, box, 4, token("btn-edge"), 2);
-        if (on) draw.text("✓", bx + box / 2, by + 1 * s, { size: 16 * s, color: token("ink"), align: "center", weight: "bold" });
+        if (on) draw.text("✓", bx + box / 2, by + 1 * s, __l10nDrawOptions({ size: 16 * s, color: token("ink"), align: "center", weight: "bold" }));
       },
     });
     if (res.activated && fresh()) later(() => { set(!on); sound("select"); });
