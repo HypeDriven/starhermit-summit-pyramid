@@ -1,3 +1,4 @@
+import { bindings } from "starhermit:input";
 import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
 import { localizedDrawOptions as __l10nDrawOptions } from "./l10n/font.ts";
 // localization-runtime:attached
@@ -112,7 +113,7 @@ function paint(id: string, x: number, y: number, w: number, h: number, cls: stri
 }
 
 // ------------------------------------------------------------------ the frame
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   const f = frame();
   shell(L);
@@ -145,14 +146,6 @@ function shell(L: Layout): void {
   // captions (#captions: 56 px under the main area's top) and the toast (80 px above its bottom)
   if (app.caption) {
     ui.place("captions", { anchor: "top", y: top + 56 - 46 }, () => ui.style(__l10nStyle("caption")).id("caption-text").label(app.caption!.text));
-  }
-  if (app.toasts.length) {
-    const t = app.toasts[0]!;
-    const w = Math.min(L.lw - 32, 520);
-    const tw = textWidth(t.text, "toast-text");
-    ui.place("toast", app.overlay ? { anchor: "top", y: 8 } : { anchor: "bottom", y: L.lh - bottom + 80 - 40 }, () => {
-      ui.column("toast-box", () => para(t.text, Math.min(tw + 1, w - 34), "toast-text", "toast-text"), { style: "toast" });
-    });
   }
 }
 
@@ -657,4 +650,11 @@ function boardPanel(w: number): void {
   para(T("Daily"), w, "h3", "board-daily-h");
   table("board-daily", [["—"]], w);
   back(w, goTitle);
+}
+
+export function drawScreens(): void {
+  if (!(app.overlay === "help")) { drawScreensImmediate(); return; }
+  const actions = ["prev","next","confirm","cancel","draw","recycle","undo","hint","camera"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
 }

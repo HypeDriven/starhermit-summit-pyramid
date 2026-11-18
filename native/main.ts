@@ -72,7 +72,11 @@ function flushAnnouncements(): void {
   spokenAssertive = false;
 }
 /** ui.js toast (one at a time, as #toast). */
-export function toast(text: string, ms = 2200): void { app.toasts = [{ text, until: now() + ms / 1000 }]; }
+let shownToast: ui.Toast | null = null;
+export function toast(text: string, ms = 2200): void {
+  shownToast?.dismiss();
+  shownToast = ui.toast!(text, { duration: ms / 1000, position: app.overlay ? "top" : "bottom", offset: app.overlay ? 8 : 80, style: "toast", dismissible: false });
+}
 const CAPTIONS: Partial<Record<audio.Sfx, string>> = {
   select: N("select"), removePair: N("pair removed"), invalid: N("invalid move"), draw: N("card drawn"),
   recycle: N("waste recycled"), undo: N("undo"), win: N("pyramid cleared — you win"), lose: N("no moves left — round over"),
