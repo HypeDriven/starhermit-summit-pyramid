@@ -904,6 +904,7 @@ export function applyLook(next: Look): void {
     vignette: { amount: 0.3, inner: 0.38, outer: 0.9, scale: [1.1, 1] },
   } : null;
   renderer.antialias = next.antialias;
+  renderer.motionBlur = next.bloom !== null ? { intensity: 0.25, samples: 8, maxPixels: 16, targetFps: 60, camera: false } : null;
   applyEnvironment();
   const envKeys = ["material", "sand", "seg", "stars", "particles"] as const, boardKeys = ["material", "card"] as const;
   const envChanged = !prev || prev.detailed !== next.detailed || prev.animated !== next.animated || prev.particles !== next.particles ||
