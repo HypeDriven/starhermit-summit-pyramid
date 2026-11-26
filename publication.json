@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-09-01T09:42:10.644889+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-23T17:02:50.877571+00:00",
+    "coverArtUpdatedAt": "2026-11-26T15:54:00.451967+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-23T17:02:50.866999+00:00",
+      "deployedAt": "2026-11-26T15:54:00.440685+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.47.0",
+      "engineVersion": "1.50.0",
       "deployWarning": null
     },
     "description": "Remove exposed card pairs that add up to the target value and clear the pyramid before the stock runs out.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-23T17:02:50.990Z",
-  "sourceCommit": "eb541be00798b05c55fcd63c22642b55d6e426c2",
-  "bytesReceived": 2039296,
-  "archiveSha256": "6e3814c0cfad3e2cf65424f815ec29768f4ae63ccf3b74d6d98908d60226a773",
+  "publishedAt": "2026-11-26T15:53:59.602Z",
+  "sourceCommit": "22404a32225354a6e69ff31090b643013778fc82",
+  "bytesReceived": 2039276,
+  "archiveSha256": "f9e7bca9e065d6bf437f4247f66be29adf31536cb80bad8209b12e60e72d17c1",
   "indexSha256": "77e3762d3e230aac3b1c411b6fa74a8e11f626e2d6e9ea531a7d5a4e4b628f7e",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 2039296,
+    "bytesReceived": 2039276,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.47.0",
+    "engineVersion": "1.50.0",
     "deployWarning": null
   },
   "liveVerification": {
